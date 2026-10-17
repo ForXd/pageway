@@ -975,7 +975,7 @@ function Workspace() {
           </span>
           <span>Typed tools. Visible actions. Your interface.</span>
           <span>
-            v0.1.0 <span className="little-dot" /> Developer preview
+            v0.1.1 <span className="little-dot" /> Developer preview
           </span>
         </footer>
       </main>

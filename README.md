@@ -56,16 +56,16 @@ PLAYGROUND_PORT=5174 ALLOWED_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
 
 ## 在已有 React 应用中接入
 
-包名已固定为以下三个。首次 npm 发布尚需账户认证；发布前可运行 `pnpm check:pack` 生成并验证 `artifacts/npm/` 内的 tarball。
+三个 SDK 已发布到 npm：[@zllling/pageway-react](https://www.npmjs.com/package/@zllling/pageway-react)、[@zllling/pageway-agent](https://www.npmjs.com/package/@zllling/pageway-agent)、[@zllling/pageway-protocol](https://www.npmjs.com/package/@zllling/pageway-protocol)。
 
 ```sh
-# npm 首次发布后，在消费项目中安装
+# 在 React 应用中安装
 pnpm add @zllling/pageway-react
 # Agent 服务中安装
 pnpm add @zllling/pageway-agent
 ```
 
-本仓库内使用 `workspace:*`。发布前测试本地 tarball 时，三个包需要一起安装，或把内部依赖通过 `pnpm.overrides` 指向本地 tarball；`check:pack` 自动完成独立消费者验证。
+本仓库内使用 `workspace:*`。测试尚未发布的新版本 tarball 时，三个包需要一起安装，或把内部依赖通过 `pnpm.overrides` 指向本地 tarball；`check:pack` 自动完成独立消费者验证。
 
 ```tsx
 import { useState } from 'react';

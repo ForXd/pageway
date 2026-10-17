@@ -15,6 +15,14 @@
 
 普通 CI 使用本地 HTTP 模型 fixture；下文的 Kilo 记录才是外部真实模型验证。最新远端结果见 [GitHub Actions](https://github.com/ForXd/pageway/actions)。
 
+## GitHub 与 npm
+
+- 公开仓库：[ForXd/pageway](https://github.com/ForXd/pageway)，MIT 协议。
+- `bed81aa` 的 [远端 CI](https://github.com/ForXd/pageway/actions/runs/39012611554) 全绿：Node 24/26 与 Linux 多浏览器 E2E。
+- 修复 Node 24 `EventTarget` 的 capture 清理兼容差异，并固定 GitHub runner 为 Ubuntu 24.04。
+- 三个 `@zllling/pageway-*` 包的 `0.1.0` 已通过 npm 账户认证发布；首次手动发布不含 GitHub provenance。
+- GitHub `npm` environment 仅允许 `v*` 标签部署。下一版通过 `.github/workflows/release.yml` 验证 OIDC 自动发布和来源证明。
+
 ## 初始实现验证
 
 以下是工程补全前的基线记录；当前测试命令和最新门禁结果以 [GitHub Actions](https://github.com/ForXd/pageway/actions) 为准。
@@ -53,7 +61,7 @@ Ego 的截图导出与 CDP capture 超时，部分 CSS 动画时间轴停在 0�
 - React 包正确导入、CSS export 存在，Provider/Chat/Overlay/Timeline 服务端 renderToString 成功。
 - 独立消费者严格 TypeScript 检查通过。
 
-这些包尚未发布。外部项目试用 tarball 时，需要把未发布的 `@zllling/pageway-protocol` 依赖通过 `pnpm.overrides` 指向对应本地 tarball；发布后不再需要这一覆盖。
+本节记录的是初次打包时的未发布状态；三个包现已完成 `0.1.0` 首次发布。外部项目试用未发布版本的 tarball 时，需要把未发布的 `@zllling/pageway-protocol` 依赖通过 `pnpm.overrides` 指向对应本地 tarball；发布后不再需要这一覆盖。
 
 ## 真实 Kilo 模型端到端
 

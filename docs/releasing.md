@@ -10,7 +10,7 @@ The root package and all three packages share a fixed version. Internal dependen
 
 ## What is automated
 
-Every pull request and push to `main` runs lint, formatting, type checks, unit tests with coverage thresholds, builds, isolated packed-package consumer checks, and browser end-to-end tests. Quality checks run on Node.js 24 and 26. Browser tests use the deterministic local agent, so required CI does not need an API key or a third-party model service.
+Every pull request and push to `main` runs lint, formatting, type checks, unit tests with coverage thresholds, builds, isolated packed-package consumer checks, and browser end-to-end tests. Quality checks run on Node.js 24 and 26. Browser tests use the real HTTP agent with a deterministic local model provider, so required CI does not need an API key or a third-party model service.
 
 Pushing a `v*` tag triggers `.github/workflows/release.yml`. A manual **Release npm packages** run accepts an existing version tag, making interrupted releases repeatable. Both paths:
 
@@ -25,7 +25,7 @@ Stable versions use the `latest` dist-tag; versions such as `0.2.0-beta.1` use `
 
 ## One-time npm setup
 
-**The committed workflow is ready, but committing it does not configure npm trust.** An owner of the `@zllling` namespace must complete the npm-side steps. No npm token is stored in this repository or required by the release workflow.
+The initial `0.1.0` packages were published on October 17, 2026. The steps below document bootstrap for maintainers and forks; committing the workflow alone does not configure npm trust. An owner of the target namespace must complete the npm-side steps. No npm token is stored in this repository or required by the release workflow.
 
 Use Node.js 24+ and a current npm CLI. The workflow pins npm 12.2.0; npm's minimum for trusted publishing is npm 11.5.1 with Node.js 22.14.0. [npm trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/)
 
@@ -50,6 +50,14 @@ Use Node.js 24+ and a current npm CLI. The workflow pins npm 12.2.0; npm's minim
    | Allowed actions      | Enable **`npm publish`** |
 
    New trusted publishers now allow staged publishing by default; direct `npm publish` must be explicitly enabled for this workflow. Complete the first successful OIDC publish within two days of adding trust; npm otherwise expires an unvalidated configuration. If `0.1.0` was bootstrapped manually, the first OIDC release needs a new version such as `0.1.1`. [npm trusted publishing setup and expiry rules](https://docs.npmjs.com/trusted-publishers/)
+
+   With npm 12, the equivalent CLI command is available for each package (npm may request browser 2FA):
+
+   ```sh
+   npm trust github @zllling/pageway-protocol --file release.yml --repository ForXd/pageway --environment npm --allow-publish
+   npm trust github @zllling/pageway-agent --file release.yml --repository ForXd/pageway --environment npm --allow-publish
+   npm trust github @zllling/pageway-react --file release.yml --repository ForXd/pageway --environment npm --allow-publish
+   ```
 
 5. In GitHub, create the `npm` environment. Restrict deployment tags to `v*`, and protect the default branch and release tags from unauthorized updates. An environment reviewer is optional; adding one means each release waits for that reviewer. The environment name must exactly match npm's configuration.
 6. Release the next version using the procedure below. Confirm all three packages show the expected version and provenance on npm. OIDC from a public repository generates provenance automatically; the workflow also explicitly requests it. Local bootstrap publications do not carry GitHub build provenance. [npm provenance documentation](https://docs.npmjs.com/generating-provenance-statements/)

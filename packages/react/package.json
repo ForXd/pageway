@@ -1,6 +1,6 @@
 {
   "name": "@zllling/pageway-react",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed page tools, agent chat, and visible action paths for React.",
   "type": "module",
   "files": [
