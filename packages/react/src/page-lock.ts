@@ -74,8 +74,10 @@ export function acquirePageLock(
     observer?.disconnect();
     dialog.removeEventListener('cancel', cancel);
     dialog.removeEventListener('close', close);
-    inputBoundary.removeEventListener('keydown', keyboard as EventListener, true);
-    inputBoundary.removeEventListener('beforeinput', editing, true);
+    // An explicit capture option also works with older EventTarget implementations
+    // that do not normalize the boolean form during listener removal.
+    inputBoundary.removeEventListener('keydown', keyboard as EventListener, { capture: true });
+    inputBoundary.removeEventListener('beforeinput', editing, { capture: true });
     dialog.removeEventListener('wheel', wheel);
     dialog.removeEventListener('touchmove', wheel);
     for (const [element, wasInert] of previousInert)
