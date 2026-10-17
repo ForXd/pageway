@@ -242,7 +242,11 @@ async function readPacked() {
 export async function registryVersion(entry, fetchRegistry = fetch) {
   const response = await fetchRegistry(
     `${registry}/${encodeURIComponent(entry.name)}/${encodeURIComponent(entry.version)}`,
-    { signal: AbortSignal.timeout(30_000), headers: { Accept: 'application/json' } },
+    {
+      signal: AbortSignal.timeout(30_000),
+      cache: 'no-store',
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    },
   );
   if (response.status === 404) return null;
   if (!response.ok)
@@ -258,6 +262,35 @@ export async function registryVersion(entry, fetchRegistry = fetch) {
     `${entry.name}@${entry.version} is already published with different bytes. Bump all versions; never replace a release.`,
   );
   return published;
+}
+
+export async function waitForPublished(
+  entry,
+  {
+    lookup = registryVersion,
+    sleep = (milliseconds) => new Promise((resolveWait) => setTimeout(resolveWait, milliseconds)),
+    now = Date.now,
+    timeoutMs = 300_000,
+  } = {},
+) {
+  const deadline = now() + timeoutMs;
+  let attempt = 0;
+  while (true) {
+    // npm can acknowledge the upload while processing it asynchronously. Only
+    // an integrity-checked registry response makes the dependency publishable.
+    const published = await lookup(entry);
+    if (published) return published;
+    const remaining = deadline - now();
+    assert(
+      remaining > 0,
+      `${entry.name} published but is not yet visible. Retry this workflow after registry propagation.`,
+    );
+    if (attempt++ % 6 === 0)
+      console.log(
+        `Waiting for ${entry.name}@${entry.version} to become visible in the registry...`,
+      );
+    await sleep(Math.min(5000, remaining));
+  }
 }
 
 async function publish(tag) {
@@ -296,18 +329,7 @@ async function publish(tag) {
       registry,
       '--ignore-scripts',
     ]);
-    let visible = false;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      if (await registryVersion(entry)) {
-        visible = true;
-        break;
-      }
-      await new Promise((resolveWait) => setTimeout(resolveWait, 2000));
-    }
-    assert(
-      visible,
-      `${entry.name} published but is not yet visible. Retry this workflow after registry propagation.`,
-    );
+    await waitForPublished(entry);
   }
 }
 

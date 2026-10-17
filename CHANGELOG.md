@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 — 2026-10-17
+
+- Wait for npm registry propagation after a successful publication instead of reporting failure after 20 seconds.
+- Keep strict artifact integrity checks and safe continuation of interrupted releases.
+
 ## 0.1.1 — 2026-10-17
 
 - Release all three packages through GitHub Actions with npm trusted publishing and provenance.

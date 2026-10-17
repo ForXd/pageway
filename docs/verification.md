@@ -21,7 +21,11 @@
 - `bed81aa` 的 [远端 CI](https://github.com/ForXd/pageway/actions/runs/39012611554) 全绿：Node 24/26 与 Linux 多浏览器 E2E。
 - 修复 Node 24 `EventTarget` 的 capture 清理兼容差异，并固定 GitHub runner 为 Ubuntu 24.04。
 - 三个 `@zllling/pageway-*` 包的 `0.1.0` 已通过 npm 账户认证发布；首次手动发布不含 GitHub provenance。
-- GitHub `npm` environment 仅允许 `v*` 标签部署。下一版通过 `.github/workflows/release.yml` 验证 OIDC 自动发布和来源证明。
+- GitHub `npm` environment 仅允许 `v*` 标签部署。标签发布使用 `.github/workflows/release.yml` 执行 OIDC 自动发布，npm 自动生成 GitHub 来源证明；最新发布结果见 [Release workflow](https://github.com/ForXd/pageway/actions/workflows/release.yml)。
+
+### 发布传播延迟回归
+
+首次 OIDC 实测发现 npm 会先确认上传，再异步处理新版本；原 20 秒的可见性等待过短。`0.1.2` 将等待窗口延长为每包五分钟，仍要求 registry 中的 SHA-512 与验证过的 tarball 一致，非 404 错误立即失败。新增五项发布回归后，本地测试为 **145 项 / 7 个文件全部通过**。原 `0.1.1` 通过同一 workflow 的失败任务重跑验证“跳过已发布且字节一致的包”的恢复能力，未重写发布标签。
 
 ## 初始实现验证
 

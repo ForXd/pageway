@@ -1,7 +1,13 @@
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
-import { inspectArchive, preflight, registryVersion, tarFiles } from './release.mjs';
+import {
+  inspectArchive,
+  preflight,
+  registryVersion,
+  tarFiles,
+  waitForPublished,
+} from './release.mjs';
 
 const expected = { name: '@zllling/pageway-agent', version: '0.1.0' };
 
@@ -155,6 +161,74 @@ describe('release retries', () => {
       await expect(
         registryVersion(entry, async () => Response.json({ ...expected, dist: { integrity } })),
       ).rejects.toThrow(/already published with different bytes/);
+    },
+  );
+});
+
+describe('asynchronous npm publication', () => {
+  const entry = { ...expected, integrity: 'sha512-reviewed-package' };
+
+  function clock() {
+    let time = 0;
+    return {
+      now: () => time,
+      sleep: vi.fn(async (milliseconds) => {
+        time += milliseconds;
+      }),
+    };
+  }
+
+  it('waits through processing 404s and succeeds only after matching registry integrity', async () => {
+    const published = { ...expected, dist: { integrity: entry.integrity } };
+    const fetchRegistry = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('processing', { status: 404 }))
+      .mockResolvedValueOnce(new Response('processing', { status: 404 }))
+      .mockResolvedValueOnce(Response.json(published));
+    const time = clock();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await expect(
+      waitForPublished(entry, {
+        ...time,
+        lookup: (candidate) => registryVersion(candidate, fetchRegistry),
+      }),
+    ).resolves.toEqual(published);
+    expect(fetchRegistry).toHaveBeenCalledTimes(3);
+    expect(time.sleep).toHaveBeenCalledTimes(2);
+    expect(fetchRegistry).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        cache: 'no-store',
+        headers: expect.objectContaining({ 'Cache-Control': 'no-cache' }),
+      }),
+    );
+  });
+
+  it('fails when the five-minute visibility budget is exhausted without claiming success', async () => {
+    const lookup = vi.fn(async () => null);
+    const time = clock();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await expect(waitForPublished(entry, { ...time, lookup })).rejects.toThrow(
+      /published but is not yet visible/,
+    );
+    expect(time.now()).toBe(300_000);
+    expect(lookup).toHaveBeenCalledTimes(61);
+    expect(time.sleep).toHaveBeenCalledTimes(60);
+  });
+
+  it.each([403, 429, 503])(
+    'fails immediately without polling on registry HTTP %s',
+    async (status) => {
+      const fetchRegistry = vi.fn(async () => new Response('registry failure', { status }));
+      const time = clock();
+      await expect(
+        waitForPublished(entry, {
+          ...time,
+          lookup: (candidate) => registryVersion(candidate, fetchRegistry),
+        }),
+      ).rejects.toThrow(`HTTP ${status}`);
+      expect(fetchRegistry).toHaveBeenCalledOnce();
+      expect(time.sleep).not.toHaveBeenCalled();
     },
   );
 });

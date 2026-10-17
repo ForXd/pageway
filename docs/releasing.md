@@ -17,7 +17,7 @@ Pushing a `v*` tag triggers `.github/workflows/release.yml`. A manual **Release 
 - Require the tag to match every package version and point to a commit on `main`.
 - Run the same complete validation workflow before publishing.
 - Publish the exact tarballs tested by the Node.js 24 consumer job. The release job verifies the commit, package names, versions, exported files, and SHA-512 integrity again.
-- Publish protocol → agent → React and wait for each version to become visible.
+- Publish protocol → agent → React and wait up to five minutes for each version to become visible with matching integrity. npm may acknowledge an upload before asynchronous registry processing finishes; that acknowledgement alone does not complete the release.
 - Skip an already published version only if the registry's integrity matches the tested tarball. A different tarball for the same version fails. Network failures, permission errors, and registry responses other than `404` are errors, not evidence of an unpublished package.
 - Serialize release runs. The publisher alone receives `id-token: write`; PR jobs receive only `contents: read`. Checkout credentials are not persisted. Actions are pinned to commit SHAs, and Dependabot proposes updates.
 

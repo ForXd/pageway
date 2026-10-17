@@ -67,7 +67,7 @@ jobs:
     needs: [resolve, validate]
     if: github.repository == 'ForXd/pageway'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment: npm
     permissions:
       contents: read
