@@ -1,0 +1,72 @@
+{
+  "name": "@zllling/pageway-react",
+  "version": "0.1.0",
+  "description": "Typed page tools, agent chat, and visible action paths for React.",
+  "type": "module",
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@zllling/pageway-protocol": "workspace:*",
+    "ajv": "^8.17.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  },
+  "sideEffects": [
+    "./src/styles.css"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./styles.css": "./src/styles.css"
+    },
+    "registry": "https://registry.npmjs.org/"
+  },
+  "license": "MIT",
+  "author": "ForXd",
+  "homepage": "https://github.com/ForXd/pageway#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ForXd/pageway.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/ForXd/pageway/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "ag-ui",
+    "pageway",
+    "react",
+    "tools"
+  ],
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}

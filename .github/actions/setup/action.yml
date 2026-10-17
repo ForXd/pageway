@@ -1,0 +1,23 @@
+name: Set up Pageway
+description: Install the pinned package manager and frozen workspace dependencies
+inputs:
+  node-version:
+    description: Node.js major version
+    required: false
+    default: '24'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        package-manager-cache: false
+    - name: Install Corepack
+      shell: bash
+      run: npm install --global corepack@0.36.0
+    - name: Install workspace
+      shell: bash
+      run: |
+        corepack enable
+        pnpm --version
+        pnpm install --frozen-lockfile

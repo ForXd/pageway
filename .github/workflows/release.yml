@@ -1,0 +1,94 @@
+name: Release npm packages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag; select this same tag in the Run workflow ref selector
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pageway-npm-release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ref: ${{ steps.commit.outputs.sha }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Validate tag syntax
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo 'An existing semantic-version tag is required.' >&2
+            exit 1
+          fi
+          if [[ "$EVENT_REF" != "refs/tags/$RELEASE_TAG" ]]; then
+            echo 'Run this workflow from the same tag so npm provenance identifies the release commit.' >&2
+            exit 1
+          fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check versions and main ancestry
+        env:
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          node scripts/release.mjs preflight --tag "$RELEASE_TAG"
+          git merge-base --is-ancestor HEAD origin/main
+      - name: Resolve immutable commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: resolve
+    uses: ./.github/workflows/validate.yml
+    with:
+      ref: ${{ needs.resolve.outputs.ref }}
+
+  publish:
+    name: Publish tested tarballs through npm OIDC
+    needs: [resolve, validate]
+    if: github.repository == 'ForXd/pageway'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@12.2.0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-tarballs
+          path: artifacts/npm/
+      - name: Publish in dependency order
+        env:
+          RELEASE_TAG: ${{ needs.resolve.outputs.tag }}
+        run: node scripts/release.mjs publish --tag "$RELEASE_TAG"

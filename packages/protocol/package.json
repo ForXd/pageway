@@ -1,0 +1,58 @@
+{
+  "name": "@zllling/pageway-protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AG-UI protocol contracts and streaming transport for Pageway",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ag-ui/core": "1.0.3",
+    "zod": "4.6.7"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    },
+    "registry": "https://registry.npmjs.org/"
+  },
+  "author": "ForXd",
+  "homepage": "https://github.com/ForXd/pageway#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ForXd/pageway.git",
+    "directory": "packages/protocol"
+  },
+  "bugs": {
+    "url": "https://github.com/ForXd/pageway/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "ag-ui",
+    "pageway",
+    "react",
+    "tools"
+  ],
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}

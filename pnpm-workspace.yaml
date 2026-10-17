@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+  - apps/*
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@ag-ui/core@1.0.3'
+  - lucide-react@1.58.0
+# Corepack selects the exact packageManager version from package.json.
+# Keep package-manager resolution with Corepack rather than duplicate it in pnpm.
+pmOnFail: ignore

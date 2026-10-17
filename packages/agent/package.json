@@ -1,0 +1,58 @@
+{
+  "name": "@zllling/pageway-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Fetch-native AG-UI agent handler for OpenAI-compatible APIs",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@zllling/pageway-protocol": "workspace:*",
+    "ajv": "8.20.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    },
+    "registry": "https://registry.npmjs.org/"
+  },
+  "author": "ForXd",
+  "homepage": "https://github.com/ForXd/pageway#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ForXd/pageway.git",
+    "directory": "packages/agent"
+  },
+  "bugs": {
+    "url": "https://github.com/ForXd/pageway/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "ag-ui",
+    "pageway",
+    "react",
+    "tools"
+  ],
+  "engines": {
+    "node": ">=22.14.0"
+  }
+}
