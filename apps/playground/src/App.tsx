@@ -164,19 +164,26 @@ const schema = (properties: Record<string, unknown>, required: string[] = []) =>
   additionalProperties: false,
 });
 
-export default function App() {
+interface AppProps {
+  endpoint?: string;
+  fetch?: typeof globalThis.fetch;
+  browserDemo?: boolean;
+}
+
+export default function App({ endpoint, fetch: fetcher, browserDemo = false }: AppProps) {
   return (
     <PagewayProvider
-      endpoint={import.meta.env.VITE_AGENT_ENDPOINT || '/api/agent'}
+      endpoint={endpoint ?? (import.meta.env.VITE_AGENT_ENDPOINT || '/api/agent')}
+      fetch={fetcher}
       animationDuration={900}
     >
-      <Workspace />
+      <Workspace browserDemo={browserDemo} />
       <PagewayOverlay />
     </PagewayProvider>
   );
 }
 
-function Workspace() {
+function Workspace({ browserDemo }: { browserDemo: boolean }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [filters, setFilters] = useState({ status: 'all', priority: 'all', query: '' });
   const [view, setView] = useState<'board' | 'list'>('board');
@@ -211,7 +218,7 @@ function Workspace() {
     model?: string;
     status?: string;
     provider?: string;
-  } | null>(null);
+  } | null>(browserDemo ? { mode: 'demo', provider: 'browser', status: 'ready' } : null);
   const [copied, setCopied] = useState(false);
   const [chatVisible, setChatVisible] = useState(true);
   const agent = usePageway();
@@ -226,11 +233,12 @@ function Workspace() {
     [tasks, filters],
   );
   useEffect(() => {
+    if (browserDemo) return;
     fetch('/api/health')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setHealth)
       .catch(() => setHealth({ status: 'offline' }));
-  }, []);
+  }, [browserDemo]);
   usePageContext({
     id: 'workspace',
     title: 'Website relaunch workspace',
@@ -385,7 +393,7 @@ function Workspace() {
         <button type="button" className="workspace-picker" onClick={() => setTab('workspace')}>
           <span className="workspace-avatar">P</span>
           <span>
-            Personal workspace<small>Developer playground</small>
+            Personal workspace<small>{browserDemo ? 'Browser demo' : 'Developer playground'}</small>
           </span>
           <ChevronDown size={14} />
         </button>
@@ -442,6 +450,12 @@ function Workspace() {
           </button>
         </div>
         <div className="sidebar-bottom">
+          {browserDemo && (
+            <a href="../" target="_top">
+              <ArrowUpRight size={16} />
+              Pageway documentation
+            </a>
+          )}
           <a href="https://docs.ag-ui.com" target="_blank" rel="noreferrer">
             <FileCode2 size={16} />
             AG-UI documentation
@@ -455,7 +469,8 @@ function Workspace() {
           <div className="profile">
             <span className="avatar avatar-you">Y</span>
             <span>
-              Your workspace<small>Local development</small>
+              Your workspace
+              <small>{browserDemo ? 'Changes stay in this tab' : 'Local development'}</small>
             </span>
             <span className="version">v0.1</span>
           </div>
@@ -479,7 +494,13 @@ function Workspace() {
         <div className="topbar-right">
           <span className={`connection ${online ? '' : 'offline'}`}>
             <i />
-            {online ? 'Agent connected' : health ? 'Agent offline' : 'Connecting'}
+            {browserDemo
+              ? 'Browser demo ready'
+              : online
+                ? 'Agent connected'
+                : health
+                  ? 'Agent offline'
+                  : 'Connecting'}
           </span>
           <span className="topbar-divider" />
           <button
@@ -962,8 +983,9 @@ function Workspace() {
             <div className="integration-note">
               <FileCode2 size={16} />
               <span>
-                Packages are local workspace packages. See the repository README for build, model
-                setup, and publishing instructions.
+                {browserDemo
+                  ? 'This demo runs a small rule-based planner in your browser. Connect your own server endpoint for real model conversations; API keys stay on your server.'
+                  : 'Packages are local workspace packages. See the repository README for build, model setup, and publishing instructions.'}
               </span>
             </div>
           </section>
@@ -989,7 +1011,11 @@ function Workspace() {
               <strong>Pageway agent</strong>
               <span>
                 <i />
-                {isLive ? `${gatewayName} · ${displayModel}` : 'Your workspace copilot'}
+                {browserDemo
+                  ? 'Local rules · no model or API key'
+                  : isLive
+                    ? `${gatewayName} · ${displayModel}`
+                    : 'Your workspace copilot'}
               </span>
             </div>
             <button
@@ -1019,9 +1045,11 @@ function Workspace() {
           />
           <div className="agent-footnote">
             <span className={`mode-dot ${isLive ? 'live' : ''}`} />
-            {isLive
-              ? `${gatewayName} · ${providerInfo?.model ? 'Response model verified' : 'Ready for live requests'}`
-              : 'Demo mode · Deterministic, no model API used'}
+            {browserDemo
+              ? 'Browser-only demo · No model API · Reload to reset'
+              : isLive
+                ? `${gatewayName} · ${providerInfo?.model ? 'Response model verified' : 'Ready for live requests'}`
+                : 'Demo mode · Deterministic, no model API used'}
           </div>
         </aside>
       )}

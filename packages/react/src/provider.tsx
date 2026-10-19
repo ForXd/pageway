@@ -36,12 +36,15 @@ export interface PagewayProviderProps {
   children: ReactNode;
   headers?: Record<string, string>;
   animationDuration?: number;
+  /** Optional transport for browser-local agents and custom HTTP clients. */
+  fetch?: typeof globalThis.fetch;
 }
 
 export function PagewayProvider({
   endpoint,
   headers,
   animationDuration,
+  fetch: fetcher,
   children,
 }: PagewayProviderProps) {
   const toolRegistry = useRef(new Map<string, () => PageTool>());
@@ -53,10 +56,25 @@ export function PagewayProvider({
     [],
   );
   const [engine] = useState(
-    () => new PagewayEngine({ endpoint, headers, animationDuration, getTools, getContexts }),
+    () =>
+      new PagewayEngine({
+        endpoint,
+        headers,
+        animationDuration,
+        fetch: fetcher,
+        getTools,
+        getContexts,
+      }),
   );
   useLayoutEffect(() => {
-    engine.updateOptions({ endpoint, headers, animationDuration, getTools, getContexts });
+    engine.updateOptions({
+      endpoint,
+      headers,
+      animationDuration,
+      fetch: fetcher,
+      getTools,
+      getContexts,
+    });
   });
   useEffect(() => () => engine.stop(), [engine]);
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot, engine.getSnapshot);

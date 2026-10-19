@@ -44,7 +44,7 @@ const replyEvents: Event[] = [
   { type: 'TEXT_MESSAGE_CONTENT', messageId: 'reply', delta: 'The update is confirmed.' },
   { type: 'TEXT_MESSAGE_END', messageId: 'reply' },
 ];
-function connect(rounds: Event[][] = [replyEvents]) {
+function connect(rounds: Event[][] = [replyEvents], stubGlobal = true) {
   const requests: RunInput[] = [];
   const fetcher = vi.fn(async (_input: unknown, init?: RequestInit) => {
     const request = JSON.parse(String(init?.body)) as RunInput;
@@ -58,7 +58,7 @@ function connect(rounds: Event[][] = [replyEvents]) {
       headers: { 'content-type': 'text/event-stream' },
     });
   });
-  vi.stubGlobal('fetch', fetcher);
+  if (stubGlobal) vi.stubGlobal('fetch', fetcher);
   return { requests, fetcher };
 }
 function Tools({
@@ -135,6 +135,62 @@ afterEach(() => {
 });
 
 describe('React public integration', () => {
+  it('executes and returns tools through an injected transport, then switches transport without losing history', async () => {
+    const globalFetch = vi.fn(() => Promise.reject(new Error('Unexpected network request')));
+    vi.stubGlobal('fetch', globalFetch);
+    const first = connect([toolEvents()], false);
+    const second = connect([replyEvents], false);
+    const page = render(
+      <PagewayProvider endpoint="/local-agent" fetch={first.fetcher} animationDuration={0}>
+        <Page />
+      </PagewayProvider>,
+    );
+    send('Update using the local transport');
+    await screen.findByText('The update is confirmed.');
+    expect(screen.getByLabelText('Page value').textContent).toBe('2');
+    expect(first.requests).toHaveLength(2);
+    expect(first.requests[1].messages.at(-1)).toMatchObject({
+      role: 'tool',
+      toolCallId: 'change-1',
+      content: '{"ok":true,"result":{"value":2}}',
+    });
+
+    page.rerender(
+      <PagewayProvider endpoint="/other-agent" fetch={second.fetcher} animationDuration={0}>
+        <Page />
+      </PagewayProvider>,
+    );
+    send('Continue using another transport');
+    await waitFor(() => expect(second.requests).toHaveLength(1));
+    expect(second.fetcher.mock.calls[0][0]).toBe('/other-agent');
+    expect(
+      second.requests[0].messages
+        .filter((message) => message.role === 'user')
+        .map((message) => message.content),
+    ).toEqual(['Update using the local transport', 'Continue using another transport']);
+    expect(globalFetch).not.toHaveBeenCalled();
+  });
+
+  it('aborts an injected transport when the provider unmounts', async () => {
+    let signal: AbortSignal | null | undefined;
+    const fetcher = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      signal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal?.reason), { once: true });
+      });
+    });
+    const page = render(
+      <PagewayProvider endpoint="/local-agent" fetch={fetcher}>
+        <Page />
+      </PagewayProvider>,
+    );
+    send('Start a local request');
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    expect(signal?.aborted).toBe(false);
+    page.unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+
   it('publishes registered tools and context and removes them when their owner unmounts', async () => {
     const { requests } = connect();
     const page = render(

@@ -1,0 +1,47 @@
+# 在线文档与演示站
+
+线上地址：[Pageway 文档与演示](https://forxd.github.io/pageway/)。
+直接体验：[任务看板演示](https://forxd.github.io/pageway/demo/)。
+
+站点位于 `apps/site`，使用 Vite 构建两个 HTML 入口：文档首页和 `demo/` 演示页。所有资源都以 `/pageway/` 为基路径，文档章节使用 hash 链接，因此在 GitHub Pages 的项目子路径中直接访问、刷新和分享章节都不需要服务端路由。
+
+## 演示如何工作
+
+演示复用 Playground 的 React 页面、注册工具、任务锁定、光标动画和操作路径。浏览器中的确定性规划器使用真实 Agent 包的 `demo` 模式，经 AG-UI SSE 协议返回工具调用；React 执行工具后，将执行结果和最新页面上下文回传给规划器，再显示确认消息。
+
+该流程全部在当前浏览器标签页运行，不请求模型 API，不需要 API Key，也不会将访客输入上传到后端。它支持页面列出的任务操作示例，不提供开放式大模型对话。刷新演示页会恢复初始工作区。生产接入方式见站内 React 与 Agent 示例：模型密钥保存在独立部署的 Agent 服务中，前端只配置该服务的 HTTP 地址。GitHub Pages 只托管静态文件，不能运行该 Agent 服务。
+
+## 本地构建与验证
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build:site
+pnpm preview:site --host 127.0.0.1 --port 4190 --strictPort
+```
+
+打开 `http://127.0.0.1:4190/pageway/`。构建产物位于 `apps/site/dist`。
+
+浏览器测试会自行启动生产预览服务；先停止手动预览，再运行：
+
+```sh
+pnpm exec playwright install --with-deps --no-shell chromium
+pnpm test:site
+```
+
+测试覆盖桌面与移动视口下的生产资源路径、文档深链接和刷新、接入示例复制、内嵌演示加载、页面工具执行与结果回传、状态更新后的页面理解，以及任务期间的锁定与取消。测试使用生产构建文件，不启动 Agent HTTP 服务，不依赖外部模型。失败时保留截图、视频和 trace，报告位于 `playwright-report/site`。
+
+也可以对已部署的站点运行同一套测试，此时不会启动本地预览服务：
+
+```sh
+SITE_BASE_URL=https://forxd.github.io/pageway/ pnpm test:site
+```
+
+## GitHub Pages 发布
+
+工作流是 [`.github/workflows/pages.yml`](../.github/workflows/pages.yml)。首次配置仓库时，在 **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。
+
+每个 Pull Request 都会构建并测试站点。推送到 `main` 或在 `main` 上手动运行 **Documentation and demo** 工作流时，测试通过后的同一份产物才会被上传和部署。其他分支的手动运行只做验证。后续文档、SDK 或演示变更随 `main` 更新自动发布，不需要手动维护 `gh-pages` 分支。
+
+构建任务只有仓库读取权限；部署任务单独获得 `pages: write` 和 `id-token: write`，使用 `github-pages` 环境。无需额外部署密钥或 npm Token。工作流和 npm 发布相互独立，更新文档不会发布 npm 包。
+
+若 Fork 到其他仓库名，需要同步修改 Vite 的 `base`、站点测试中的路径和公开站点链接。如果绑定自定义域名，也需按实际 URL 调整基路径。GitHub 的官方设置说明见 [Using custom workflows with GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。

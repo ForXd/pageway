@@ -7,12 +7,28 @@ Pageway 将应用显式注册的页面上下文、类型化操作工具、聊天
 基于 pnpm workspace、Vite、TypeScript 和 AG-UI 的 MIT 开源项目。三个 SDK 使用 `@zllling/pageway-*` 包名：protocol、agent、react。
 
 [![CI](https://github.com/ForXd/pageway/actions/workflows/ci.yml/badge.svg)](https://github.com/ForXd/pageway/actions/workflows/ci.yml)
+[![Documentation and demo](https://github.com/ForXd/pageway/actions/workflows/pages.yml/badge.svg)](https://github.com/ForXd/pageway/actions/workflows/pages.yml)
 
-[接入文档](packages/react/README.md) · [测试流程](docs/testing.md) · [浏览器测试](docs/testing-e2e.md) · [发布说明](docs/releasing.md)
+[在线文档](https://forxd.github.io/pageway/) · [在线演示](https://forxd.github.io/pageway/demo/) · [接入文档](packages/react/README.md) · [测试流程](docs/testing.md) · [浏览器测试](docs/testing-e2e.md) · [发布说明](docs/releasing.md)
 
 ![Pageway 工具执行与可视化操作路径](docs/assets/pageway-motion.png)
 
 截图来自本地 HTTP 模型 fixture 的浏览器 E2E，展示实际页面修改、操作路径和完成反馈。
+
+## 在线体验与文档
+
+打开 [Pageway 文档站](https://forxd.github.io/pageway/)，查看可复制的 React、Agent 接入示例、页面工具与 AG-UI 执行流程。[独立演示](https://forxd.github.io/pageway/demo/) 可以直接体验筛选、更新任务、切换视图、执行动画、页面锁定与取消。
+
+在线演示在浏览器内运行确定性规划器，无需 API Key；它复用实际 SDK、SSE 编解码和工具结果续接，不调用真实模型，也不保存任务数据。真实模型需要单独部署 Agent HTTP 服务，模型凭证保留在服务端。
+
+```sh
+pnpm dev:site       # 本地文档与演示站
+pnpm build:site     # 构建至 apps/site/dist
+pnpm preview:site   # 预览 /pageway/ 子路径
+pnpm test:site      # 对生产构建执行站点与演示 E2E（先 build:site）
+```
+
+`main` 更新经构建与站点浏览器测试后自动发布至 GitHub Pages，配置见 [站点部署](docs/github-pages.md)。
 
 ## 快速启动
 
@@ -53,6 +69,7 @@ PLAYGROUND_PORT=5174 ALLOWED_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
 | `packages/agent` · `@zllling/pageway-agent`       | Fetch API 标准 HTTP handler、模型 SSE 适配、输入校验、演示规划器 |
 | `apps/server` · `@zllling/pageway-server`         | Node HTTP 适配、环境配置、健康检查、CORS                         |
 | `apps/playground` · `@zllling/pageway-playground` | 已接入 SDK 的 React/Vite 任务看板                                |
+| `apps/site` · `@zllling/pageway-site`             | GitHub Pages 在线文档与浏览器内交互演示                          |
 
 ## 在已有 React 应用中接入
 
@@ -195,7 +212,8 @@ pnpm check             # lint、格式、类型、单测覆盖率、生产构建
 pnpm exec playwright install --with-deps --no-shell chromium firefox webkit
 pnpm test:e2e          # 完整浏览器链路，使用本地模型 HTTP fixture
 pnpm check:pack        # 独立消费者安装、SSR、HTTP、CSS、TypeScript
-pnpm check:all         # 上述完整门禁
+pnpm test:site        # 生产文档站与浏览器内演示 E2E（先 build:site）
+pnpm check:all         # 上述完整门禁，包含站点 E2E
 pnpm release:dry-run   # 发布预检与 npm dry-run，不上传
 pnpm check:model       # 可选：真实外部模型 API，不在普通 CI 消耗额度
 ```

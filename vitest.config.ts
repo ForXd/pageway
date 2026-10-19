@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       'packages/**/*.test.{ts,tsx}',
       'apps/server/**/*.test.ts',
+      'apps/site/**/*.test.ts',
       'scripts/**/*.test.{ts,mjs}',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],

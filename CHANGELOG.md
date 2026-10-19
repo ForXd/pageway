@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add the public documentation and interactive demo site at https://forxd.github.io/pageway/, with typechecked React and Agent integration examples.
+- Run the actual Agent handler in the browser for a keyless rules demo, including SSE, tool results, visible motion, page locking, and cancellation.
+- Allow an optional custom `fetch` transport on `PagewayProvider` without changing the default HTTP behavior.
+- Test production site paths, navigation, and demo interactions before deploying to GitHub Pages through Actions.
+
 ## 0.1.2 — 2026-10-17
 
 - Wait for npm registry propagation after a successful publication instead of reporting failure after 20 seconds.

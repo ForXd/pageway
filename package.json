@@ -8,9 +8,9 @@
     "node": ">=22.14.0"
   },
   "scripts": {
-    "dev": "pnpm --filter './packages/*' build && pnpm --parallel --filter './apps/*' dev",
+    "dev": "pnpm --filter './packages/*' build && pnpm --parallel --filter @zllling/pageway-playground --filter @zllling/pageway-server dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm --filter './packages/*' build && pnpm -r typecheck && tsc -p tsconfig.test.json && tsc -p tests/e2e/tsconfig.json",
+    "typecheck": "pnpm --filter './packages/*' build && pnpm -r typecheck && tsc -p tsconfig.test.json && tsc -p tests/e2e/tsconfig.json && tsc -p tests/site/tsconfig.json",
     "test": "vitest run",
     "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build",
     "check:model": "tsx --env-file-if-exists=.env scripts/check-model.ts",
@@ -26,8 +26,12 @@
     "check:pack": "node scripts/verify-packed.mjs",
     "release:preflight": "node scripts/release.mjs preflight",
     "release:dry-run": "node scripts/release.mjs dry-run",
-    "check:all": "pnpm check && pnpm check:pack && pnpm test:e2e",
-    "lint:fix": "biome lint --write ."
+    "check:all": "pnpm check && pnpm check:pack && pnpm test:e2e && pnpm test:site",
+    "lint:fix": "biome lint --write .",
+    "dev:site": "pnpm --filter './packages/*' build && pnpm --filter @zllling/pageway-site dev",
+    "build:site": "pnpm --filter './packages/*' build && pnpm --filter @zllling/pageway-site build",
+    "preview:site": "pnpm --filter @zllling/pageway-site preview",
+    "test:site": "playwright test --config playwright.site.config.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
