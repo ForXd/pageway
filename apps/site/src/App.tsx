@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import {
   ArrowDown,
   ArrowRight,
@@ -230,6 +230,18 @@ function Demo() {
 }
 
 export function App() {
+  useLayoutEffect(() => {
+    // The static HTML has no section anchors until React commits this page.
+    // Restore an initial deep link once; later anchor navigation stays native.
+    let id: string;
+    try {
+      id = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return;
+    }
+    if (id) document.getElementById(id)?.scrollIntoView({ behavior: 'instant', block: 'start' });
+  }, []);
+
   return (
     <>
       <a className="skip-link" href="#main-content">

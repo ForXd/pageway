@@ -20,7 +20,7 @@ test('production docs load under the Pages subpath and copy the React and Agent 
 
   await page.getByRole('link', { name: 'React 接入', exact: true }).first().click();
   await expect(page).toHaveURL(/\/pageway\/#react$/);
-  await page.locator('#react').scrollIntoViewIfNeeded();
+  await expect(page.locator('#react .section-heading')).toBeInViewport();
   await page.screenshot({ path: testInfo.outputPath('react-guide.png') });
   await page.getByRole('button', { name: '复制 React 接入示例', exact: true }).click();
   await expect
@@ -42,6 +42,24 @@ test('production docs load under the Pages subpath and copy the React and Agent 
   await page.reload();
   await expect(page.locator('#agent')).toBeInViewport();
   await expectNoOverflow(page);
+});
+
+test('a delayed entry bundle restores direct documentation links and reloads after React mounts', async ({
+  page,
+}) => {
+  let delayedEntries = 0;
+  // A cold CDN load must not depend on React committing before the browser's
+  // initial fragment lookup. Routing also disables the HTTP cache on reload.
+  await page.route('**/assets/main-*.js', async (route) => {
+    delayedEntries += 1;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await route.continue();
+  });
+  await page.goto('./#agent');
+  await expect(page.locator('#agent .section-heading')).toBeInViewport();
+  await page.reload();
+  await expect(page.locator('#agent .section-heading')).toBeInViewport();
+  expect(delayedEntries).toBe(2);
 });
 
 test('a visitor can start the embedded demo and open its standalone page', async ({ page }) => {
