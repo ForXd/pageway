@@ -1,8 +1,7 @@
 import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { createApp } from './app.js';
-import type { AgentOptions } from '@zllling/pageway-agent';
+import { createApp, type ServerOptions } from './app.js';
 
 // Resolve .env from the monorepo root for both src and dist invocations.
 try {
@@ -12,10 +11,12 @@ try {
 }
 
 const mode = process.env.AGENT_MODE ?? 'demo';
-if (mode !== 'demo' && mode !== 'openai') throw new Error('AGENT_MODE must be demo or openai.');
-const options: AgentOptions = {
+if (mode !== 'demo' && mode !== 'openai' && mode !== 'proxy')
+  throw new Error('AGENT_MODE must be demo, openai or proxy.');
+const options: ServerOptions = {
   mode,
   baseURL: process.env.MODEL_BASE_URL,
+  apiPath: process.env.MODEL_API_PATH,
   apiKey: process.env.MODEL_API_KEY,
   model: process.env.MODEL_NAME,
   timeoutMs: Number(process.env.AGENT_TIMEOUT_MS ?? 45_000),

@@ -9,6 +9,7 @@
     "packages/**/*.test.ts",
     "packages/**/*.test.tsx",
     "scripts/check-model.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "scripts/check-frontend-model.ts"
   ]
 }

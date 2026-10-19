@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Integrate Pageway'
+  short_description: 'Add Pageway tools, chat, caching and WebMCP to React'
+  default_prompt: 'Use $integrate-pageway to connect this React app to Pageway with typed page tools and an appropriate agent transport.'

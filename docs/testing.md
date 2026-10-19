@@ -4,19 +4,20 @@ The suite is organized around the public protocol, HTTP handler, React registrat
 
 ## Commands
 
-| Command                              | Purpose                                                                                    |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `pnpm lint`                          | Biome static and accessibility checks                                                      |
-| `pnpm format:check`                  | Prettier formatting gate                                                                   |
-| `pnpm typecheck`                     | Build declarations and check SDKs, apps, test code, and E2E configuration                  |
-| `pnpm test:unit` / `pnpm test:watch` | Run or watch Vitest tests                                                                  |
-| `pnpm test:coverage`                 | Enforce coverage thresholds and write HTML, LCOV, and JSON reports                         |
-| `pnpm build`                         | Build all three packages and both example apps                                             |
-| `pnpm test:e2e`                      | Run Playwright browser workflows                                                           |
-| `pnpm check:pack`                    | Install actual tarballs with React 18/19 and verify runtime/SSR/CSS/types/client lifecycle |
-| `pnpm check:all`                     | Run all local quality gates                                                                |
-| `pnpm release:dry-run`               | Preflight, consumer checks, and npm publish dry-run without uploading                      |
-| `pnpm check:model`                   | Optional real-model conversation, function call, and unique result-receipt check           |
+| Command                              | Purpose                                                                                                               |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`                          | Biome static and accessibility checks                                                                                 |
+| `pnpm format:check`                  | Prettier formatting gate                                                                                              |
+| `pnpm typecheck`                     | Build declarations and check SDKs, apps, test code, and E2E configuration                                             |
+| `pnpm test:unit` / `pnpm test:watch` | Run or watch Vitest tests                                                                                             |
+| `pnpm test:coverage`                 | Enforce coverage thresholds and write HTML, LCOV, and JSON reports                                                    |
+| `pnpm build`                         | Build all three packages and both example apps                                                                        |
+| `pnpm test:e2e`                      | Run Playwright browser workflows                                                                                      |
+| `pnpm check:pack`                    | Install actual tarballs with React 18/19 and verify runtime/SSR/CSS/types/client lifecycle                            |
+| `pnpm check:all`                     | Run all local quality gates                                                                                           |
+| `pnpm release:dry-run`               | Preflight, consumer checks, and npm publish dry-run without uploading                                                 |
+| `pnpm check:model`                   | Optional real-model conversation, function call, and unique result-receipt check                                      |
+| `pnpm check:model:frontend`          | Fixed anonymous free model: frontend engine → HTTP proxy → actual tool → real-model continuation; no .env or user key |
 
 Install matching Playwright browsers before the first E2E run. Exact commands, ports, failure traces, and test isolation are documented in [browser integration tests](testing-e2e.md).
 
@@ -24,7 +25,10 @@ Install matching Playwright browsers before the first E2E run. Exact commands, p
 
 - Protocol: arbitrary UTF-8 chunk boundaries, LF/CRLF/CR, multiline events, event IDs, malformed JSON/schema, truncated and oversized frames, reader cleanup, and aborting stalled async iterables.
 - Agent HTTP: method/body/content-type limits, input/history/tool schema validation, real HTTP streaming provider calls, secret redaction, provider metadata, continuation with tool results, cancellation, timeout, and deterministic demo behavior.
+- OpenAI proxy: ordinary completion payload and SSE passthrough, fixed upstream and model allowlist, server-side authorization, bounded body, disconnect/timeout, and redacted upstream failures.
 - React: public hooks and Provider registration/cleanup, latest props and closures, synchronous and asynchronous state updates, multiple tools, error result continuation, task reset/stop/unmount, StrictMode, keyboard/IME composition, retry, and lock cleanup.
+- Sessions: opt-in storage, user/workspace key changes, checkpoints, corrupted/expired/oversized records, denied storage, quota exhaustion, normalized interrupted history, and no tool replay on restoration.
+- WebMCP: current document and early navigator adapters, fresh context and schemas, registration ownership/collisions, async StrictMode cleanup, cancellation, and shared execution without a chat endpoint. API fixtures validate SDK behavior, not browser feature availability.
 - Browser: full conversation and result loop, all six demo tools, latest context after multiple mutations, errors, cancellation, native modal and focus/scroll lock, real cursor motion, reduced motion, and mobile layout.
 - Distribution: package names and version alignment, published exports, dependency rewrites, tarball contents/integrity, standalone consumer imports/types, and release rerun behavior.
 
@@ -48,3 +52,10 @@ Every push to `main` and pull request runs the reusable validation workflow. Qua
 Run unit suites sequentially within the same checkout: concurrent Vitest processes can contend for their shared transform cache. E2E servers use dedicated ports and are not reused across runs. Avoid editing source while a browser matrix runs; Vite hot reload correctly resets application state and would invalidate the in-flight scenario.
 
 The optional external-model check is intentionally separate from deterministic CI. [Verification history](verification.md) records live-provider evidence independently of mocked provider checks.
+
+`check:model:frontend` uses the real frontend engine in Node, a real local HTTP
+proxy, and two external completions against a catalog-verified anonymous free
+model. It requires a fresh tool-only receipt in the final answer. It does not
+read `.env` or user credentials, and it does not establish React/DOM correctness;
+the browser suite verifies those boundaries separately. `check:model` remains an
+explicit opt-in check of the provider configured by its environment.

@@ -13,6 +13,8 @@ import { flushSync } from 'react-dom';
 import type { PageContext } from '@zllling/pageway-protocol';
 import { PagewayEngine } from './engine.js';
 import { useClientLayoutEffect } from './client-effect.js';
+import { createWebMCPBridge } from './webmcp.js';
+import type { WebMCPOptions, WebMCPState } from './webmcp.js';
 import type { PageTool, PagewaySnapshot, PagewayToolInfo } from './types.js';
 
 interface Registry {
@@ -26,13 +28,26 @@ export interface PagewayValue extends PagewaySnapshot {
   stop: () => void;
   reset: () => void;
   tools: PagewayToolInfo[];
+  webmcp: WebMCPState;
 }
 
 const StateContext = createContext<PagewayValue | null>(null);
 const RegistryContext = createContext<Registry | null>(null);
 
 export interface PagewayProviderProps {
-  endpoint: string;
+  /** Existing AG-UI agent endpoint. Omit for WebMCP-only pages. */
+  endpoint?: string;
+  /** OpenAI-compatible API root, e.g. /api/openai or https://proxy.example/v1. */
+  apiOrigin?: string;
+  /** Appended to apiOrigin; defaults to chat/completions. */
+  apiPath?: string;
+  model?: string;
+  /** OpenAI round timeout including stream consumption. Default 180 s; maximum 300 s. */
+  timeoutMs?: number;
+  /** Opt-in local conversation cache. Scope this to the current user/workspace. */
+  storageKey?: string;
+  /** Expose registered tools to browser agents when WebMCP is available. Default true. */
+  webmcp?: boolean | WebMCPOptions;
   children: ReactNode;
   headers?: Record<string, string>;
   animationDuration?: number;
@@ -42,6 +57,12 @@ export interface PagewayProviderProps {
 
 export function PagewayProvider({
   endpoint,
+  apiOrigin,
+  apiPath,
+  model,
+  timeoutMs,
+  storageKey,
+  webmcp = true,
   headers,
   animationDuration,
   fetch: fetcher,
@@ -59,6 +80,10 @@ export function PagewayProvider({
     () =>
       new PagewayEngine({
         endpoint,
+        apiOrigin,
+        apiPath,
+        model,
+        timeoutMs,
         headers,
         animationDuration,
         fetch: fetcher,
@@ -69,6 +94,10 @@ export function PagewayProvider({
   useClientLayoutEffect(() => {
     engine.updateOptions({
       endpoint,
+      apiOrigin,
+      apiPath,
+      model,
+      timeoutMs,
       headers,
       animationDuration,
       fetch: fetcher,
@@ -76,8 +105,52 @@ export function PagewayProvider({
       getContexts,
     });
   });
-  useEffect(() => () => engine.stop(), [engine]);
+  useClientLayoutEffect(() => engine.configureSession(storageKey), [engine, storageKey]);
+  useEffect(() => {
+    const suspend = () => {
+      engine.stop();
+      engine.saveSession();
+    };
+    window.addEventListener('pagehide', suspend);
+    return () => {
+      window.removeEventListener('pagehide', suspend);
+      suspend();
+    };
+  }, [engine]);
   const snapshot = useSyncExternalStore(engine.subscribe, engine.getSnapshot, engine.getSnapshot);
+  const bridge = useRef<ReturnType<typeof createWebMCPBridge> | null>(null);
+  const [webmcpState, setWebmcpState] = useState<WebMCPState>({
+    status: 'disabled',
+    registered: [],
+    error: null,
+  });
+  const webmcpEnabled = webmcp !== false;
+  const prefix = typeof webmcp === 'object' ? webmcp.prefix : undefined;
+  useEffect(() => {
+    if (!webmcpEnabled) {
+      setWebmcpState({ status: 'disabled', registered: [], error: null });
+      return;
+    }
+    let active = true;
+    const current = createWebMCPBridge({
+      prefix,
+      getTools,
+      getContexts,
+      executeTool: engine.executeTool,
+      onChange: (state) => {
+        if (active) setWebmcpState(state);
+      },
+    });
+    bridge.current = current;
+    setWebmcpState(current.getSnapshot());
+    return () => {
+      active = false;
+      bridge.current = null;
+      current.dispose();
+    };
+  }, [engine, getTools, getContexts, webmcpEnabled, prefix]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Registry metadata changes trigger synchronization while execute reads the latest tool callback.
+  useEffect(() => bridge.current?.sync(), [tools]);
 
   const refreshTools = useCallback(() => {
     const next = getTools().map(({ name, description, parameters }) => ({
@@ -122,11 +195,12 @@ export function PagewayProvider({
     () => ({
       ...snapshot,
       tools,
+      webmcp: webmcpState,
       sendMessage: engine.sendMessage,
       stop: engine.stop,
       reset: engine.reset,
     }),
-    [snapshot, tools, engine],
+    [snapshot, tools, engine, webmcpState],
   );
   return (
     <RegistryContext.Provider value={registry}>

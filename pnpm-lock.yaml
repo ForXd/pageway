@@ -130,6 +130,9 @@ importers:
 
   packages/react:
     dependencies:
+      '@zllling/pageway-agent':
+        specifier: workspace:*
+        version: link:../agent
       '@zllling/pageway-protocol':
         specifier: workspace:*
         version: link:../protocol

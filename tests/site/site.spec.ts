@@ -35,7 +35,7 @@ test('production docs load under the Pages subpath and copy the React and Agent 
   await page.getByRole('button', { name: '复制 Agent 接入示例', exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toContain('createAgentHandler');
+    .toContain('createOpenAIProxyHandler');
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toContain('process.env');
@@ -124,8 +124,14 @@ test('the static demo executes a page tool and returns its result to the local A
 test('the static demo locks interaction during the task and cancellation restores control', async ({
   page,
 }) => {
+  // Hold the executor before mutation so the keyboard and pointer assertions do
+  // not race a 900 ms demo action on a busy CI runner. Motion has its own tests.
+  await page.clock.install({ time: new Date('2030-01-01T08:00:00Z') });
   await openDemo(page);
+  await page.clock.pauseAt(new Date('2030-01-01T10:00:00Z'));
   await send(page, '将 PW-103 标记为完成');
+  await expect(page.locator(lockSelector)).toHaveAttribute('data-pageway-phase', 'acting');
+  await page.clock.runFor(100);
   const lock = page.locator(`${lockSelector}[data-pageway-phase="moving"]`);
   await expect(lock).toBeVisible();
   expect(await lock.evaluate((element) => element.matches(':modal'))).toBe(true);
@@ -135,6 +141,7 @@ test('the static demo locks interaction during the task and cancellation restore
   await page.keyboard.type('blocked');
   await expect(page.locator('input[aria-label="Search tasks"]')).toHaveValue('');
   await page.locator('[data-pageway-stop]').click();
+  await page.clock.resume();
   await expect(page.locator(lockSelector)).toHaveCount(0);
   await expect(page.locator('.pw-action.pw-is-cancelled')).toHaveCount(1);
   await expect(page.getByRole('combobox', { name: 'PW-103 status', exact: true })).toHaveValue(
@@ -144,5 +151,35 @@ test('the static demo locks interaction during the task and cancellation restore
   await page.getByRole('button', { name: 'New task', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Create a task' })).toBeVisible();
   await page.getByRole('button', { name: 'Close dialog' }).click();
+  await expectNoOverflow(page);
+});
+
+test('the public WebMCP-only workspace loads without a model endpoint and keeps unsupported browsers usable', async ({
+  page,
+  baseURL,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'modelContext', { configurable: true, value: undefined });
+    Object.defineProperty(navigator, 'modelContext', { configurable: true, value: undefined });
+  });
+  const network: string[] = [];
+  const origin = new URL(baseURL ?? 'http://127.0.0.1:4190').origin;
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' ||
+      /\/api\//.test(request.url()) ||
+      new URL(request.url()).origin !== origin
+    )
+      network.push(request.url());
+  });
+  const response = await page.goto('./webmcp/');
+  expect(response?.ok()).toBe(true);
+  await expect(page.getByText('WebMCP unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Message Pageway' })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'PW-103 status', exact: true }).selectOption('done');
+  await expect(page.getByRole('combobox', { name: 'PW-103 status', exact: true })).toHaveValue(
+    'done',
+  );
+  expect(network).toEqual([]);
   await expectNoOverflow(page);
 });

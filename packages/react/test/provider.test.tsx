@@ -410,7 +410,7 @@ describe('React public integration', () => {
     send('Second message');
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(fetcher.mock.calls[1][0]).toBe('/new');
-    expect(fetcher.mock.calls[1][1]?.headers).toMatchObject({ 'X-App': 'second' });
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get('X-App')).toBe('second');
     expect(
       requests[1].messages
         .filter((message) => message.role === 'user')
@@ -526,5 +526,51 @@ describe('React public integration', () => {
     expect(signal?.aborted).toBe(true);
     expect(document.querySelector('dialog[open]')).toBeNull();
     expect(document.body.style.overflow).toBe(originalOverflow);
+  });
+  it('checkpoints and cancels an interrupted conversation on pagehide without replaying it on remount', async () => {
+    const key = 'pageway-provider-navigation';
+    localStorage.removeItem(key);
+    let requestSignal: AbortSignal | null | undefined;
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      requestSignal = init?.signal;
+      return new Promise((_resolve, reject) => {
+        requestSignal?.addEventListener(
+          'abort',
+          () => reject(new DOMException('Cancelled', 'AbortError')),
+          { once: true },
+        );
+      });
+    });
+    const page = render(
+      <PagewayProvider endpoint="/agent" storageKey={key} fetch={fetcher}>
+        <Page />
+        <PagewayOverlay />
+      </PagewayProvider>,
+    );
+    send('Remember my interrupted request');
+    await waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    expect(localStorage.getItem(key)).toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new Event('pagehide'));
+    });
+    expect(requestSignal?.aborted).toBe(true);
+    expect(JSON.parse(localStorage.getItem(key)!).state.messages[0].content).toBe(
+      'Remember my interrupted request',
+    );
+    page.unmount();
+    const restored = render(
+      <StrictMode>
+        <PagewayProvider endpoint="/agent" storageKey={key} fetch={fetcher}>
+          <Page />
+          <PagewayOverlay />
+        </PagewayProvider>
+      </StrictMode>,
+    );
+    expect(screen.getByText('Remember my interrupted request')).toBeTruthy();
+    expect(screen.getByLabelText('Agent state').textContent).toBe('idle');
+    expect(document.querySelector('dialog[open]')).toBeNull();
+    expect(fetcher).toHaveBeenCalledOnce();
+    restored.unmount();
+    localStorage.removeItem(key);
   });
 });

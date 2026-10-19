@@ -6,11 +6,14 @@ import { validateInput } from './validation.js';
 
 export type { OpenAIOptions } from './openai.js';
 export type { ProviderInfo } from './provider-info.js';
+export { createOpenAIProxyHandler, type OpenAIProxyOptions } from './proxy.js';
 
 export interface AgentOptions {
   /** Demo is a deterministic planner, explicitly labeled in all responses. */
   mode?: 'demo' | 'openai';
   baseURL?: string;
+  /** Completion route appended to baseURL. Default: chat/completions. */
+  apiPath?: string;
   apiKey?: string;
   model?: string;
   systemPrompt?: string;
@@ -18,6 +21,8 @@ export interface AgentOptions {
   timeoutMs?: number;
   /** Injectable transport, useful for edge runtimes and contract tests. */
   fetch?: typeof globalThis.fetch;
+  /** Application authentication headers for compatible gateways. */
+  headers?: Record<string, string>;
 }
 
 export interface AgentStatus {
@@ -49,14 +54,24 @@ const json = (body: unknown, status: number) =>
   });
 
 async function readInput(request: Request): Promise<unknown> {
-  if (!request.body) throw new AgentError('INVALID_INPUT', 'Request body is required.');
   if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json'))
     throw new AgentError('INVALID_INPUT', 'Use application/json for the request body.');
-  const reader = request.body.getReader();
+  const reader = request.body?.getReader();
   let size = 0;
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let body = '';
   try {
+    // Firefox can expose a null Request.body for a buffered request while its
+    // arrayBuffer() remains readable. Server runtimes retain the streaming limit.
+    if (!reader) {
+      request.signal.throwIfAborted();
+      const bytes = await request.arrayBuffer();
+      request.signal.throwIfAborted();
+      if (!bytes.byteLength) throw new AgentError('INVALID_INPUT', 'Request body is required.');
+      if (bytes.byteLength > 1_048_576)
+        throw new AgentError('INPUT_TOO_LARGE', 'Request exceeds the 1 MiB limit.');
+      return JSON.parse(decoder.decode(bytes));
+    }
     while (true) {
       request.signal.throwIfAborted();
       const { done, value } = await reader.read();
@@ -72,8 +87,8 @@ async function readInput(request: Request): Promise<unknown> {
     if (error instanceof AgentError) throw error;
     throw new AgentError('INVALID_INPUT', 'Request body must be valid UTF-8 JSON.');
   } finally {
-    await reader.cancel().catch(() => undefined);
-    reader.releaseLock();
+    await reader?.cancel().catch(() => undefined);
+    reader?.releaseLock();
   }
 }
 
@@ -89,7 +104,7 @@ export function createAgentHandler(
   if (mode === 'openai') {
     if (!options.baseURL || !options.model?.trim())
       throw new Error('OpenAI mode requires baseURL and model.');
-    completionURL(options.baseURL);
+    completionURL(options.baseURL, options.apiPath);
   }
   return async (request) => {
     if (request.method !== 'POST')

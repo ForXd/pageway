@@ -58,6 +58,47 @@ describe('server boundary', () => {
 });
 
 describe('HTTP routing and response contract', () => {
+  it('serves a standard completion proxy without requiring the AG-UI endpoint', async () => {
+    const app = createApp({
+      mode: 'proxy',
+      baseURL: 'https://provider.test/v1',
+      model: 'fixture',
+      apiKey: 'server-secret',
+      fetch: async () =>
+        new Response('data: [DONE]\n\n', { headers: { 'Content-Type': 'text/event-stream' } }),
+    });
+    const health = await app(new Request('http://localhost/api/health'));
+    expect(await health.json()).toMatchObject({
+      mode: 'proxy',
+      model: 'fixture',
+      protocol: 'OpenAI Chat Completions',
+      configured: true,
+    });
+    const response = await app(
+      new Request('http://localhost/api/openai/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:5173' },
+        body: JSON.stringify({
+          model: 'fixture',
+          stream: true,
+          messages: [{ role: 'user', content: 'Hello' }],
+        }),
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('data: [DONE]\n\n');
+    expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
+    expect((await app(new Request('http://localhost/api/agent'))).status).toBe(404);
+    const preflight = await app(
+      new Request('http://localhost/api/openai/chat/completions', {
+        method: 'OPTIONS',
+        headers: { Origin: 'http://localhost:5173' },
+      }),
+    );
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization');
+    expect(() => createApp({ mode: 'proxy' })).toThrow('requires baseURL');
+  });
+
   it('keeps CORS headers on not-found and agent validation responses', async () => {
     const app = createApp();
     const headers = { Origin: 'http://localhost:5173' };

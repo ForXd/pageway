@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         demo: fileURLToPath(new URL('./demo/index.html', import.meta.url)),
+        webmcp: fileURLToPath(new URL('./webmcp/index.html', import.meta.url)),
       },
     },
   },

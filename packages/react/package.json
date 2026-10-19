@@ -1,6 +1,6 @@
 {
   "name": "@zllling/pageway-react",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Typed page tools, agent chat, and visible action paths for React.",
   "type": "module",
   "files": [
@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@zllling/pageway-protocol": "workspace:*",
-    "ajv": "^8.17.1"
+    "ajv": "^8.17.1",
+    "@zllling/pageway-agent": "workspace:*"
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",

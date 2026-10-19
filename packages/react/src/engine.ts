@@ -1,5 +1,7 @@
 import Ajv from 'ajv';
-import { readAgentEvents } from '@zllling/pageway-protocol';
+import { readAgentEvents, RunAgentInputSchema } from '@zllling/pageway-protocol';
+import { requestAgentRound } from './transport.js';
+import { createSessionStore, type SessionStore } from './session-store.js';
 import type {
   ActionStep,
   PageTool,
@@ -8,6 +10,7 @@ import type {
   PagewayMessage,
   PagewaySnapshot,
   PagewayToolCall,
+  PagewayToolResult,
 } from './types.js';
 
 const uid = () => globalThis.crypto.randomUUID();
@@ -82,10 +85,51 @@ export class PagewayEngine {
   private snapshot = initialState();
   private listeners = new Set<() => void>();
   private controller: AbortController | null = null;
-  private threadId = uid();
+  private threadId: string = uid();
   private attemptedCalls = new Set<string>();
   private completedCalls = new Set<string>();
   private epoch = 0;
+  private sessionKey: string | undefined;
+  private sessionStore: SessionStore | undefined;
+
+  /** Called after mount; storage is never read during React/SSR rendering. */
+  configureSession = (storageKey?: string) => {
+    if (storageKey === this.sessionKey) return;
+    this.persistSession();
+    this.stop();
+    this.epoch += 1;
+    this.controller = null;
+    this.sessionKey = storageKey;
+    this.sessionStore = storageKey ? createSessionStore({ storageKey }) : undefined;
+    const restored = this.sessionStore?.load();
+    this.threadId = restored?.threadId ?? uid();
+    this.attemptedCalls.clear();
+    this.completedCalls.clear();
+    for (const message of restored?.messages ?? []) {
+      for (const call of message.toolCalls ?? []) this.attemptedCalls.add(call.id);
+      if (message.toolCallId) this.completedCalls.add(message.toolCallId);
+    }
+    this.snapshot = {
+      ...initialState(),
+      messages: restored?.messages ?? [],
+      actions: restored?.actions ?? [],
+    };
+    this.listeners.forEach((listener) => {
+      listener();
+    });
+  };
+
+  private persistSession() {
+    if (!this.snapshot.messages.length && !this.snapshot.actions.length) return;
+    this.sessionStore?.save({
+      threadId: this.threadId,
+      messages: this.snapshot.messages,
+      actions: this.snapshot.actions,
+    });
+  }
+
+  /** Flush before a page navigation; the store closes interrupted tool batches. */
+  saveSession = () => this.persistSession();
 
   constructor(private options: PagewayEngineOptions) {}
 
@@ -136,9 +180,10 @@ export class PagewayEngine {
       ),
     });
   }
-  private finishCall(call: PagewayToolCall, result: unknown) {
+  private finishCall(call: PagewayToolCall, result: unknown, recordMessage = true) {
     if (this.completedCalls.has(call.id)) return;
     this.completedCalls.add(call.id);
+    if (!recordMessage) return;
     this.appendMessage({
       id: uid(),
       role: 'tool',
@@ -176,6 +221,7 @@ export class PagewayEngine {
   };
   reset = () => {
     this.stop();
+    this.sessionStore?.clear();
     this.epoch += 1;
     this.controller = null;
     this.threadId = uid();
@@ -245,7 +291,81 @@ export class PagewayEngine {
         activity: null,
       });
     } finally {
-      if (epoch === this.epoch && this.controller === controller) this.controller = null;
+      if (epoch === this.epoch && this.controller === controller) {
+        this.controller = null;
+        this.persistSession();
+      }
+    }
+  };
+
+  /** External agents share the same validated, cancellable visual execution path. */
+  executeTool = async (
+    name: string,
+    args: Record<string, unknown>,
+    externalSignal?: AbortSignal,
+  ): Promise<PagewayToolResult> => {
+    if (this.controller) return { ok: false, error: 'Another Pageway task is already running.' };
+    if (externalSignal?.aborted) return { ok: false, error: 'Cancelled by agent.' };
+    let encoded: string;
+    try {
+      encoded = JSON.stringify(args);
+      if (encoded.length > 200_000) throw new Error('Arguments are too large.');
+    } catch {
+      return { ok: false, error: 'Tool arguments must be a JSON object under 200 KB.' };
+    }
+    const epoch = this.epoch;
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    externalSignal?.addEventListener('abort', abort, { once: true });
+    if (externalSignal?.aborted) abort();
+    this.controller = controller;
+    const call: PagewayToolCall = {
+      id: uid(),
+      type: 'function',
+      function: { name, arguments: encoded },
+    };
+    this.publish({
+      status: 'running',
+      error: null,
+      spotlight: null,
+      path: [],
+      cursor: this.cursorOrigin(),
+      animationDuration: this.motionDuration(),
+      activity: { phase: 'planning', label: 'Executing an external agent request' },
+      actions: [
+        ...this.snapshot.actions,
+        {
+          id: call.id,
+          name,
+          label: this.options.getTools().find((tool) => tool.name === name)?.description ?? name,
+          status: 'planning',
+          source: 'webmcp',
+          args: {},
+          startedAt: Date.now(),
+        },
+      ],
+    });
+    try {
+      return await this.executeCall(call, controller.signal, false);
+    } catch (error) {
+      const message = isAbort(error, controller.signal)
+        ? 'Cancelled by user or agent.'
+        : errorText(error);
+      if (epoch === this.epoch && !this.completedCalls.has(call.id)) {
+        this.patchAction(call.id, {
+          status: controller.signal.aborted ? 'cancelled' : 'error',
+          error: message,
+          endedAt: Date.now(),
+        });
+      }
+      return { ok: false, error: message };
+    } finally {
+      externalSignal?.removeEventListener('abort', abort);
+      if (epoch === this.epoch && this.controller === controller) {
+        this.controller = null;
+        this.publish({ status: 'idle', spotlight: null, activity: null });
+        this.persistSession();
+      }
     }
   };
 
@@ -279,16 +399,11 @@ export class PagewayEngine {
       state: { page: contexts },
       forwardedProps: { source: '@zllling/pageway-react' },
     };
-    const response = await (this.options.fetch ?? globalThis.fetch)(this.options.endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        ...this.options.headers,
-      },
-      body: JSON.stringify(request),
+    const response = await requestAgentRound(
+      this.options,
+      RunAgentInputSchema.parse(request),
       signal,
-    });
+    );
     if (!response.ok) {
       const detail = (await response.text()).slice(0, 600);
       throw new Error(`Agent request failed (${response.status})${detail ? `: ${detail}` : ''}`);
@@ -369,6 +484,7 @@ export class PagewayEngine {
                 name,
                 label: tool?.description ?? name,
                 status: 'planning',
+                source: 'chat',
                 args: {},
                 startedAt: Date.now(),
               },
@@ -431,7 +547,12 @@ export class PagewayEngine {
     return [...calls.values()];
   }
 
-  private async executeCall(call: PagewayToolCall, signal: AbortSignal) {
+  private async executeCall(
+    call: PagewayToolCall,
+    signal: AbortSignal,
+    recordMessage = true,
+  ): Promise<PagewayToolResult> {
+    let outcome: PagewayToolResult | undefined;
     this.attemptedCalls.add(call.id);
     const tool = this.options.getTools().find((candidate) => candidate.name === call.function.name);
     try {
@@ -465,7 +586,8 @@ export class PagewayEngine {
       );
       signal.throwIfAborted();
       this.patchAction(call.id, { status: 'success', result, endedAt: Date.now() });
-      this.finishCall(call, { ok: true, result: result ?? null });
+      outcome = { ok: true, result: result ?? null };
+      this.finishCall(call, outcome, recordMessage);
       await this.refreshTarget(
         this.options.getTools().find((candidate) => candidate.name === tool.name) ?? tool,
         args,
@@ -473,13 +595,19 @@ export class PagewayEngine {
         signal,
       );
       await this.acknowledgeStep(tool.name, 'success', signal);
+      return outcome;
     } catch (error) {
-      if (isAbort(error, signal)) throw error;
+      if (isAbort(error, signal)) {
+        if (outcome) return outcome;
+        throw error;
+      }
       const message = errorText(error);
       this.normalizeInterruptedCall(call);
       this.patchAction(call.id, { status: 'error', error: message, endedAt: Date.now() });
-      this.finishCall(call, { ok: false, error: message });
+      outcome = { ok: false, error: message };
+      this.finishCall(call, outcome, recordMessage);
       await this.acknowledgeStep(call.function.name, 'error', signal);
+      return outcome;
     }
   }
 

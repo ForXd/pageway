@@ -13,7 +13,12 @@ import '@zllling/pageway-react/styles.css';
 
 export default function App() {
   return (
-    <PagewayProvider endpoint="/api/agent">
+    <PagewayProvider
+      apiOrigin="/api/openai"
+      model="your-tool-capable-model"
+      timeoutMs={180_000}
+      storageKey="my-app:current-user:pageway"
+    >
       <Products />
       <PagewayChat suggestions={['把排序切换为价格从低到高']} />
       <ActionTimeline />
@@ -22,7 +27,7 @@ export default function App() {
   );
 }
 
-function Products() {
+export function Products() {
   const [sort, setSort] = useState<'default' | 'price_asc'>('default');
 
   usePageContext({

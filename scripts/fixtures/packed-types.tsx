@@ -1,4 +1,8 @@
-import { createAgentHandler, type AgentOptions } from '@zllling/pageway-agent';
+import {
+  createAgentHandler,
+  createOpenAIProxyHandler,
+  type AgentOptions,
+} from '@zllling/pageway-agent';
 import { encodeSSE, EventType, type PageContext } from '@zllling/pageway-protocol';
 import {
   PagewayProvider,
@@ -40,7 +44,33 @@ const app = (
     <ActionTimeline />
   </PagewayProvider>
 );
+const proxy = createOpenAIProxyHandler({
+  baseURL: 'https://model.example/v1',
+  allowedModels: ['example'],
+});
+const direct = (
+  <PagewayProvider
+    apiOrigin="/api/openai"
+    model="example"
+    apiPath="chat/completions"
+    storageKey="pageway:user:workspace"
+    webmcp={{ prefix: 'workspace_' }}
+  >
+    <Tools />
+    <PagewayChat />
+    <PagewayOverlay />
+  </PagewayProvider>
+);
+const webmcpOnly = (
+  <PagewayProvider>
+    <Tools />
+    <PagewayOverlay />
+  </PagewayProvider>
+);
 void [
+  proxy,
+  direct,
+  webmcpOnly,
   handler,
   app,
   encodeSSE({ type: EventType.RUN_FINISHED, runId: 'run', threadId: 'consumer' }),

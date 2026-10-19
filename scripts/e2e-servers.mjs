@@ -11,6 +11,7 @@ const env = {
   ...process.env,
   AGENT_MODE: 'openai',
   MODEL_BASE_URL: 'http://127.0.0.1:4182/v1',
+  MODEL_API_PATH: 'chat/completions',
   MODEL_NAME: 'pageway-e2e-model',
   MODEL_API_KEY: '',
   AGENT_TIMEOUT_MS: '8000',
@@ -18,7 +19,11 @@ const env = {
   PORT: '4181',
   PLAYGROUND_PORT: '4180',
   AGENT_PROXY_TARGET: 'http://127.0.0.1:4181',
+  OPENAI_PROXY_TARGET: 'http://127.0.0.1:4183',
   VITE_AGENT_ENDPOINT: '/api/agent',
+  VITE_API_ORIGIN: '',
+  VITE_MODEL_NAME: 'pageway-e2e-model',
+  VITE_STORAGE_KEY: '',
   ALLOWED_ORIGINS: 'http://127.0.0.1:4180',
 };
 
@@ -42,8 +47,12 @@ function stop(code = 0) {
   ).then(() => process.exit(code));
 }
 
-function run(args) {
-  const child = spawn(process.execPath, args, { cwd: root, env, stdio: 'inherit' });
+function run(args, overrides = {}) {
+  const child = spawn(process.execPath, args, {
+    cwd: root,
+    env: { ...env, ...overrides },
+    stdio: 'inherit',
+  });
   children.push(child);
   child.on('error', (error) => {
     console.error(error);
@@ -58,6 +67,10 @@ function run(args) {
 // up by this process, including when a test run is interrupted.
 run(['tests/e2e/model-server.mjs']);
 run(['--import', 'tsx', '--conditions=development', 'apps/server/src/index.ts']);
+run(['--import', 'tsx', '--conditions=development', 'apps/server/src/index.ts'], {
+  AGENT_MODE: 'proxy',
+  PORT: '4183',
+});
 run([
   'apps/playground/node_modules/vite/bin/vite.js',
   '--host',

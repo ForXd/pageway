@@ -1,6 +1,6 @@
 {
   "name": "pageway",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.14.0",
@@ -31,7 +31,8 @@
     "dev:site": "pnpm --filter './packages/*' build && pnpm --filter @zllling/pageway-site dev",
     "build:site": "pnpm --filter './packages/*' build && pnpm --filter @zllling/pageway-site build",
     "preview:site": "pnpm --filter @zllling/pageway-site preview",
-    "test:site": "playwright test --config playwright.site.config.ts"
+    "test:site": "playwright test --config playwright.site.config.ts",
+    "check:model:frontend": "tsx scripts/check-frontend-model.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",

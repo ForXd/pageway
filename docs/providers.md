@@ -1,8 +1,46 @@
 # 模型 API 接入与验证
 
-核验日期：**2026-10-17（Asia/Shanghai）**。
+最近前端完整链路核验：**2026-10-19（Asia/Shanghai）**。下面保留 2026-10-17 的供应商探测记录；免费策略和目录可能变化。
 
-Pageway 的真实模型模式接入 **OpenAI Chat Completions 兼容 API**。模型需要支持 `tools`、结构化 `tool_calls` 和 `role: "tool"` 的结果回传。API Key 只配置在 agent 服务端；前端仅指定 Pageway agent 的 HTTP 地址。
+Pageway 的真实模型模式接入 **OpenAI Chat Completions 兼容 API**。模型需要支持 `tools`、结构化 `tool_calls` 和 `role: "tool"` 的结果回传。0.2 起前端指定 `apiOrigin` 和 `model`，模型 API Key 仅在兼容网关或凭证代理服务端配置；已有 AG-UI 服务仍通过 `endpoint` 接入。
+
+## 推荐接入：浏览器循环 + 普通模型代理
+
+```tsx
+<PagewayProvider
+  apiOrigin="/api/openai"
+  model="nvidia/nemotron-3.5-lightning:free"
+  timeoutMs={180_000}
+>
+  {/* 页面、PagewayChat 与 PagewayOverlay */}
+</PagewayProvider>
+```
+
+兼容端点是 `POST /api/openai/chat/completions`。已有网关可直接复用；需要自建代理时使用 `createOpenAIProxyHandler({ baseURL, apiKey, allowedModels, timeoutMs })`。浏览器请求是标准模型协议，后端不需要执行 Pageway Agent。绝对 apiOrigin 需由服务端允许相应跨域请求；有密钥的供应商不要从浏览器直接调用。
+
+本仓库 Playground 可使用：
+
+```dotenv
+AGENT_MODE=proxy
+MODEL_BASE_URL=https://ai-gateway.kilo.ai/api/v1
+MODEL_NAME=nvidia/nemotron-3.5-lightning:free
+MODEL_API_KEY=
+AGENT_TIMEOUT_MS=180000
+VITE_API_ORIGIN=/api/openai
+VITE_MODEL_NAME=nvidia/nemotron-3.5-lightning:free
+```
+
+这些 VITE 变量只是公开地址和模型名称。不要设置 VITE 模型密钥。启动 `pnpm dev` 后，前端循环经过标准模型代理执行页面工具。默认不提供配置时仍使用无网络模型的规则演示。
+
+### 免费真实模型的前端链路检查
+
+```sh
+pnpm check:model:frontend
+```
+
+此命令固定使用匿名 Kilo 免费模型，不读取 `.env` 或用户密钥，先确认目录中的免费标记及零价格，再运行两轮 completion。链路为 Node 中的真实前端引擎 → 本地 HTTP 凭证代理 → 外部 SSE 模型 → 合成业务工具 → 结果续答；模型必须准确返回只存在于工具结果中的现场随机回执。它不验证浏览器 DOM 或 React 渲染，这部分由独立 Playwright 测试覆盖。
+
+2026-10-19 该检查通过：模型调用 `complete_item`，工具将合成对象改为 done，第二轮准确返回 `PAGEWAY-b477078c-60c9-4ea0-8106-03dfb43d3e70`。共两次 completion，未使用付费模型或用户密钥。详细证据见 [验证记录](verification.md)。
 
 ## 首选：Kilo Gateway 免费模型
 
@@ -45,6 +83,8 @@ AGENT_TIMEOUT_MS=180000
 ```
 
 修改后重启 agent 服务。`MODEL_BASE_URL` 填 API 根地址，不包含 `/chat/completions`。Key 留空时不会发送 Authorization；接入其他需要 Key 的供应商时，只在服务端填写 `MODEL_API_KEY`，不要放入前端变量或提交真实 `.env`。
+
+这组 `AGENT_MODE=openai` 配置保留 AG-UI `/api/agent` 接入；要测试新的前端循环，使用上面的 `AGENT_MODE=proxy` 和 VITE 配置。两种路径不要混接。
 
 Kilo 会在流末提供 usage 数据。SSE 消费方还需处理终止帧、usage 尾帧和流内错误，不能在收到 HTTP 200 后直接视为成功。[官方流式说明](https://kilo.ai/docs/gateway/streaming)
 

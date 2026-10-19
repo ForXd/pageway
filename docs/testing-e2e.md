@@ -57,6 +57,24 @@ Chromium runs all scenarios. Firefox and WebKit run the full round-trip and mult
 
 The model fixture chooses scripted scenarios from the test prompt, but its final acknowledgment is built from the received tool results and current context. A stale context or missing result produces an error response, not a canned successful acknowledgment. The test inspects the actual model HTTP requests as an independent assertion. These tests establish integration correctness, not real-model reasoning quality or the availability of a free provider; `pnpm check:model` is the separate opt-in live-provider check.
 
+## Frontend API, cache, and WebMCP boundaries
+
+The frontend OpenAI entry uses `apiOrigin` with the same local model fixture
+through the ordinary proxy. Assertions inspect standard completion requests and
+tool-result continuation rather than relying on an AG-UI HTTP endpoint. Session
+scenarios exercise localStorage restoration without replaying page operations,
+and clear/reset behavior. A restored chat is not restored business data.
+
+WebMCP-only scenarios omit chat and model endpoints, register the actual page
+tools, and drive them through a test implementation of the browser API. This
+checks discovery metadata, fresh context, shared execution, lock/cancellation,
+and removal; it does not prove native availability in a user's browser. Public
+site checks verify the static WebMCP entry without making model HTTP requests.
+Actual browser support is reported separately in [verification](verification.md).
+
+Use `pnpm check:model:frontend` for the separate real anonymous model round trip;
+it runs the frontend engine in Node over real HTTP and never reads a paid key.
+
 ## Reports and debugging
 
 `playwright-report/` contains the HTML report. `test-results/e2e-junit.xml` is the CI-friendly JUnit report. Failed tests retain a trace, screenshot, video, and error context under `test-results/e2e/`; motion tests also attach sampled positions and phases and save moving/success screenshots. These generated directories are ignored by Git and uploaded by CI for diagnosis.

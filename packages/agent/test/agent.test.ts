@@ -124,6 +124,31 @@ async function withProvider<T>(
   }
 }
 
+describe('buffered Request compatibility', () => {
+  const withoutBodyStream = (body: string | Uint8Array<ArrayBuffer>) => {
+    const req = new Request('https://pageway.invalid/internal-run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    Object.defineProperty(req, 'body', { value: null });
+    return req;
+  };
+
+  it('accepts readable buffered requests when the runtime does not expose Request.body', async () => {
+    const response = await createAgentHandler()(withoutBodyStream(JSON.stringify(input('Hello'))));
+    expect(response.status).toBe(200);
+    expect((await events(response)).at(-1)?.type).toBe(EventType.RUN_FINISHED);
+  });
+
+  it('keeps empty-body, UTF-8 and byte limits on the buffered fallback', async () => {
+    const handler = createAgentHandler();
+    expect((await handler(withoutBodyStream(''))).status).toBe(400);
+    expect((await handler(withoutBodyStream(new Uint8Array([0xc3, 0x28])))).status).toBe(400);
+    expect((await handler(withoutBodyStream('x'.repeat(1_048_577)))).status).toBe(413);
+  });
+});
+
 function stream(response: ServerResponse, text: string): void {
   response.writeHead(200, { 'Content-Type': 'text/event-stream' });
   const bytes = Buffer.from(text);

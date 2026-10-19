@@ -21,6 +21,8 @@ import {
 import reactExample from './examples/react.tsx?raw';
 import agentExample from './examples/agent.ts?raw';
 import asyncToolExample from './examples/async-tool.tsx?raw';
+import legacyAgentExample from './examples/legacy-agent.ts?raw';
+import webmcpExample from './examples/webmcp.tsx?raw';
 
 const repository = 'https://github.com/ForXd/pageway';
 const demoUrl = `${import.meta.env.BASE_URL}demo/`;
@@ -28,8 +30,10 @@ const sections = [
   ['quickstart', '快速开始'],
   ['react', 'React 接入'],
   ['agent', 'Agent 接入'],
+  ['sessions', '会话缓存'],
+  ['webmcp', 'WebMCP 接入'],
   ['tools', '工具与上下文'],
-  ['protocol', 'AG-UI 协议'],
+  ['protocol', '协议与执行'],
   ['lifecycle', '动画与取消'],
   ['boundaries', '能力边界'],
 ];
@@ -259,7 +263,7 @@ export function App() {
               target="_blank"
               rel="noreferrer"
             >
-              v0.1.3
+              v0.2.0
             </a>
           </nav>
           <a className="github-link" href={repository} target="_blank" rel="noreferrer">
@@ -274,7 +278,7 @@ export function App() {
         <section id="overview" className="hero section-anchor">
           <div className="hero-copy">
             <p className="eyebrow">
-              <span /> OPEN SOURCE · REACT + AG-UI
+              <span /> OPEN SOURCE · REACT + WEBMCP
             </p>
             <h1>
               让页面
@@ -386,7 +390,7 @@ export function App() {
           <div>
             <GitBranch size={20} />
             <h2>结果真正回到模型</h2>
-            <p>通过 AG-UI 流连接对话、执行与续答。</p>
+            <p>标准模型接口与 WebMCP 共用页面工具。</p>
           </div>
         </section>
 
@@ -430,9 +434,16 @@ export function App() {
               <a href={`${repository}/blob/main/CONTRIBUTING.md`} target="_blank" rel="noreferrer">
                 参与贡献 <ArrowUpRight size={13} />
               </a>
+              <a
+                href={`${repository}/blob/main/skills/integrate-pageway/SKILL.md`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                React 接入 Skill <ArrowUpRight size={13} />
+              </a>
             </div>
             <span className="sidebar-note">
-              开发者预览 · v0.1.3
+              开发者预览 · v0.2.0
               <br />
               React 18 / 19 · ES modules
             </span>
@@ -442,8 +453,8 @@ export function App() {
             <section id="quickstart" className="doc-section section-anchor">
               <SectionHeading
                 number="01 / GET STARTED"
-                title="从两个包开始。"
-                lead="前端注册能力，后端连接模型。你继续使用已有的页面、状态管理与业务 API。"
+                title="从前端的一个包开始。"
+                lead="前端指定 apiOrigin，连接已有 OpenAI 兼容端点。页面工具、对话循环和执行结果回传都由浏览器负责。"
               />
               <div className="requirements">
                 <span>Node.js 22.14+</span>
@@ -454,7 +465,7 @@ export function App() {
                 label="安装命令"
                 file="terminal"
                 code={
-                  '# React 应用\npnpm add @zllling/pageway-react@0.1.3\n\n# Agent 服务\npnpm add @zllling/pageway-agent@0.1.3'
+                  '# React 应用\npnpm add @zllling/pageway-react@0.2.0\n\n# 可选：模型凭证代理\npnpm add @zllling/pageway-agent@0.2.0'
                 }
               />
               <div className="package-list">
@@ -467,7 +478,7 @@ export function App() {
                     <Layers size={17} />
                     <b>pageway-react</b>
                   </span>
-                  <p>工具 hooks、对话、动画与操作轨迹</p>
+                  <p>工具、对话循环、缓存、WebMCP 与动画</p>
                   <ArrowUpRight size={17} />
                 </a>
                 <a
@@ -479,7 +490,7 @@ export function App() {
                     <Terminal size={17} />
                     <b>pageway-agent</b>
                   </span>
-                  <p>Fetch HTTP handler 与模型流适配</p>
+                  <p>可选模型代理、AG-UI handler 与流适配</p>
                   <ArrowUpRight size={17} />
                 </a>
                 <a
@@ -529,26 +540,44 @@ export function App() {
                 <div>
                   <strong>示例也是项目中的 TypeScript 源文件。</strong>
                   <p>
-                    它会参与类型检查，展示的代码和被检查的代码来自同一个文件。将 Agent 服务挂载到{' '}
-                    <code>/api/agent</code> 后即可连通；Vite 开发环境可代理该路径到你的服务端。
+                    它会参与类型检查，展示的代码和被检查的代码来自同一个文件。将兼容端点挂载到{' '}
+                    <code>/api/openai/chat/completions</code>，并让前后端的 <code>model</code>{' '}
+                    一致即可连通；Vite 开发环境可代理该路径到你的服务端。
                   </p>
                 </div>
               </div>
               <p>
                 <code>usePageway()</code> 提供 <code>messages</code>、<code>sendMessage</code>、
                 <code>stop</code>、<code>reset</code>、<code>status</code>、<code>actions</code> 与{' '}
-                <code>events</code>，方便接入自定义 UI。Provider 的 <code>headers</code>{' '}
-                可携带应用自己的鉴权信息，<code>animationDuration</code> 控制光标移动时长。
+                <code>events</code> 和 <code>webmcp</code>，方便接入自定义 UI。Provider 的{' '}
+                <code>headers</code> 可携带应用自己的鉴权信息，<code>animationDuration</code>{' '}
+                控制光标移动时长。
+              </p>
+              <p>
+                <code>apiOrigin</code> 可以是同源路径或绝对 API 根地址；默认追加{' '}
+                <code>chat/completions</code>，也可用 <code>apiPath</code>{' '}
+                指定路径。模型密钥留在代理服务，
+                <code>headers</code> 只携带应用访问凭证。已有 AG-UI 后端继续使用{' '}
+                <code>endpoint</code>，两种地址不要同时配置。
+              </p>
+              <p>
+                <code>timeoutMs</code> 控制 apiOrigin 模式每轮模型等待时间，默认 180000 毫秒，允许
+                1–300000 毫秒；代理服务也需配置足够的超时。AG-UI endpoint
+                模式的模型超时由其服务端决定。
               </p>
             </section>
 
             <section id="agent" className="doc-section section-anchor">
               <SectionHeading
                 number="03 / AGENT"
-                title="把标准模型 API 接到后端。"
-                lead="Agent 接收标准 Request，返回流式 Response。下面以 Next.js App Router 为例，也可以接入支持 Fetch API 的服务端框架。"
+                title="后端只需转发标准模型请求。"
+                lead="复用已有 OpenAI 兼容网关即可。下面的可选代理负责服务端凭证、模型白名单和流转发，无需自行实现 Agent 循环。"
               />
-              <CodeBlock label="Agent 接入示例" file="app/api/agent/route.ts" code={agentExample} />
+              <CodeBlock
+                label="Agent 接入示例"
+                file="app/api/openai/chat/completions/route.ts"
+                code={agentExample}
+              />
               <CodeBlock
                 label="服务端环境变量示例"
                 file="server .env"
@@ -583,8 +612,22 @@ export function App() {
               <p>
                 模型凭证始终保留在后端。GitHub Pages
                 仅托管静态文件，本站演示使用浏览器内的规则规划器；部署真实模型时，将 Provider 的{' '}
-                <code>endpoint</code> 指向你自己的 Agent HTTP 服务。
+                <code>apiOrigin</code> 指向你自己的兼容代理，或允许浏览器匿名访问的模型 API。
               </p>
+              <details className="code-details">
+                <summary>
+                  已有 AG-UI Agent 服务 <ChevronRight size={16} />
+                </summary>
+                <p>
+                  保留原来的 <code>endpoint="/api/agent"</code> 接入方式，HTTP 继续使用
+                  RunAgentInput 和 AG-UI SSE。
+                </p>
+                <CodeBlock
+                  label="AG-UI Agent 兼容示例"
+                  file="app/api/agent/route.ts"
+                  code={legacyAgentExample}
+                />
+              </details>
               <a
                 className="text-link"
                 href={`${repository}/blob/main/docs/providers.md`}
@@ -595,9 +638,90 @@ export function App() {
               </a>
             </section>
 
+            <section id="sessions" className="doc-section section-anchor">
+              <SectionHeading
+                number="04 / SESSIONS"
+                title="刷新后，接着聊。"
+                lead="设置 storageKey 后，聊天记录与操作轨迹在任务结束或页面离开时保存到当前浏览器的 localStorage。"
+              />
+              <CodeBlock
+                label="会话缓存配置"
+                file="src/App.tsx"
+                code={
+                  '<PagewayProvider\n  apiOrigin="/api/openai"\n  model="your-tool-capable-model"\n  storageKey={["my-app", userId, workspaceId, "pageway"].join(":")}\n>\n  {/* 页面、聊天、轨迹与 Overlay */}\n</PagewayProvider>'
+                }
+              />
+              <p>
+                缓存是可选项，默认关闭。每条缓存最多 1 MiB，7
+                天后失效；不可用、损坏或超额时继续正常对话。
+                缓存只恢复消息和轨迹，不会再次执行历史工具，也不恢复你的业务页面状态、动画或交互锁。
+                进行中的任务在恢复时标为中断，不会在刷新后自动续跑。
+              </p>
+              <p>
+                使用用户和工作区隔离 key，切换 key 会切换会话。<code>usePageway().reset()</code>{' '}
+                清空当前会话与对应缓存；退出登录时同样应清理。缓存为本机明文，包含消息及工具参数、结果，请按应用的数据策略启用。
+              </p>
+            </section>
+
+            <section id="webmcp" className="doc-section section-anchor">
+              <SectionHeading
+                number="05 / WEBMCP"
+                title="让其他 Agent，也能操作页面。"
+                lead="同一套 usePageTool 和 usePageContext 自动注册到浏览器的 WebMCP，无需提供自己的 Agent HTTP 接口。"
+              />
+              <CodeBlock
+                label="WebMCP 接入示例"
+                file="src/BrowserAgentPage.tsx"
+                code={webmcpExample}
+              />
+              <a
+                className="text-link"
+                href={`${import.meta.env.BASE_URL}webmcp/`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                打开无需聊天后端的 WebMCP 演示 <ArrowUpRight size={16} />
+              </a>
+              <p>
+                默认启用，工具使用 <code>pageway_</code> 前缀；<code>pageway_get_context</code>{' '}
+                每次返回最新注册上下文。可通过 <code>webmcp={'{false}'}</code> 关闭，或用{' '}
+                <code>webmcp={'{{ prefix: "shop_" }}'}</code>{' '}
+                分配命名空间。外部调用与聊天共用参数校验、 操作轨迹、锁定和取消流程，同一 Provider
+                不会同时执行两项任务。
+              </p>
+              <div className="callout">
+                <Terminal size={19} />
+                <div>
+                  <strong>需要浏览器和 Agent 支持 WebMCP。</strong>
+                  <p>
+                    优先使用 <code>document.modelContext</code>，兼容早期{' '}
+                    <code>navigator.modelContext</code>。Chrome 本地测试需启用{' '}
+                    <code>chrome://flags/#enable-webmcp-testing</code>
+                    ；公开站点需符合浏览器的实验开放条件。 不支持时{' '}
+                    <code>usePageway().webmcp.status</code> 为 <code>unsupported</code>
+                    ，页面继续可用。
+                  </p>
+                </div>
+              </div>
+              <p>
+                状态还包括 <code>disabled</code>、<code>registering</code>、<code>ready</code> 和{' '}
+                <code>error</code>；通过 <code>registered</code> 查看工具名，<code>error</code>{' '}
+                查看注册失败原因。 本站自动化测试中的浏览器 API 替身只验证 SDK
+                适配，不能代表任意浏览器已支持原生 WebMCP。
+              </p>
+              <a
+                className="text-link"
+                href="https://developer.chrome.com/docs/ai/webmcp/imperative-api"
+                target="_blank"
+                rel="noreferrer"
+              >
+                查看浏览器原生 API 与开放条件 <ArrowUpRight size={16} />
+              </a>
+            </section>
+
             <section id="tools" className="doc-section section-anchor">
               <SectionHeading
-                number="04 / TOOLS & CONTEXT"
+                number="06 / TOOLS & CONTEXT"
                 title="能力边界，由你的应用定义。"
                 lead="模型获得工具描述和必要的业务状态。实际操作始终由浏览器中注册的 execute 回调完成。"
               />
@@ -613,7 +737,7 @@ export function App() {
                   <code>usePageTool</code>
                   <p>
                     用 <code>name</code>、<code>description</code> 和 JSON Schema
-                    描述参数。前后端都会校验参数，未注册的工具不会执行。
+                    描述参数。浏览器在执行前校验参数，未注册的工具不会执行。
                   </p>
                 </div>
                 <div>
@@ -649,24 +773,24 @@ export function App() {
 
             <section id="protocol" className="doc-section section-anchor">
               <SectionHeading
-                number="05 / THE ROUND TRIP"
+                number="07 / THE ROUND TRIP"
                 title="从调用，到实际结果。"
-                lead="前后端沿用 AG-UI 标准。一次用户任务可以经过多轮 HTTP 请求，直到模型有足够的执行结果来回答。"
+                lead="apiOrigin 模式的 HTTP 只传标准 Chat Completions。AG-UI 在浏览器内部统一执行事件；已有 endpoint 模式继续沿用 AG-UI HTTP。"
               />
               <ol className="protocol-flow">
                 <li>
                   <span>01</span>
                   <div>
-                    <strong>页面 → Agent</strong>
+                    <strong>页面 → 兼容模型端点</strong>
                     <p>POST 消息、工具 schema 与最新页面上下文。</p>
-                    <code>RunAgentInput</code>
+                    <code>messages + tools + stream: true</code>
                   </div>
                 </li>
                 <li>
                   <span>02</span>
                   <div>
-                    <strong>Agent → 模型 → 页面</strong>
-                    <p>模型增量被转换为 AG-UI SSE 文本和工具事件。</p>
+                    <strong>模型 → 页面</strong>
+                    <p>浏览器把模型增量转换为统一的 AG-UI 文本和工具事件。</p>
                     <code>TOOL_CALL_* → RUN_FINISHED</code>
                   </div>
                 </li>
@@ -681,7 +805,7 @@ export function App() {
                 <li>
                   <span>04</span>
                   <div>
-                    <strong>结果 → 下一轮 Agent</strong>
+                    <strong>结果 → 下一轮模型请求</strong>
                     <p>提交真实回执和更新后的上下文，模型继续回复或调用工具。</p>
                     <code>role: 'tool'</code>
                   </div>
@@ -693,8 +817,9 @@ export function App() {
                 <code>threadId</code>，每轮生成新 <code>runId</code>。前端最多自动续接 12 轮。
               </p>
               <p>
-                工具结果在下一次 <code>RunAgentInput.messages</code>{' '}
-                中回传，无需增加独立的结果上报端点。未完整接收或失败的工具参数流不会被执行。
+                工具结果在下一次 <code>messages</code>{' '}
+                中回传，无需增加独立的结果上报端点。未完整接收或失败的工具参数流不会被执行。 WebMCP
+                调用由浏览器原生 API 把结果直接交给外部 Agent，不经过模型 HTTP 端点。
               </p>
               <a
                 className="text-link"
@@ -708,7 +833,7 @@ export function App() {
 
             <section id="lifecycle" className="doc-section section-anchor">
               <SectionHeading
-                number="06 / VISIBLE & INTERRUPTIBLE"
+                number="08 / VISIBLE & INTERRUPTIBLE"
                 title="每一步看得见，也停得下来。"
                 lead="PagewayOverlay 将执行过程映射为光标移动、目标聚焦、点击脉冲与完成反馈，操作路径保留参数和实际结果。"
               />
@@ -765,7 +890,7 @@ export function App() {
 
             <section id="boundaries" className="doc-section section-anchor">
               <SectionHeading
-                number="07 / BEFORE YOU SHIP"
+                number="09 / BEFORE YOU SHIP"
                 title="接入之前，了解这些边界。"
                 lead="Pageway 是一个可组合的页面 Agent SDK，目前处于开发者预览阶段。"
               />
@@ -780,7 +905,7 @@ export function App() {
                 <div>
                   <h3>你的会话与业务权限</h3>
                   <p>
-                    当前不包含会话数据库、多用户身份系统、持久审计或人审策略。客户端上下文和工具结果不是后端授权依据。
+                    提供可选本机缓存，不包含服务端会话数据库、多用户身份系统、持久审计或人审策略。客户端上下文和工具结果不是后端授权依据。
                   </p>
                 </div>
                 <div>

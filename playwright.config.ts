@@ -33,17 +33,17 @@ export default defineConfig({
     },
     {
       name: 'firefox',
-      testMatch: 'core.spec.ts',
+      testMatch: /(?:core|openai|webmcp)\.spec\.ts/,
       use: { ...devices['Desktop Firefox'], viewport: { width: 1440, height: 1000 } },
     },
     {
       name: 'webkit',
-      testMatch: 'core.spec.ts',
+      testMatch: /(?:core|openai|webmcp)\.spec\.ts/,
       use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 1000 } },
     },
     {
       name: 'mobile-chromium',
-      testMatch: /(?:core|motion)\.spec\.ts/,
+      testMatch: /(?:core|motion|openai|webmcp)\.spec\.ts/,
       use: { ...devices['Pixel 7'], channel: 'chromium' },
     },
   ],

@@ -1,5 +1,6 @@
 export { PagewayProvider, usePageTool, usePageContext, usePageway } from './provider.js';
 export type { PagewayProviderProps, PagewayValue } from './provider.js';
+export type { WebMCPOptions, WebMCPState } from './webmcp.js';
 export { PagewayChat, ActionTimeline, PagewayOverlay } from './components.js';
 export type { PagewayChatProps, PagewayOverlayProps } from './components.js';
 export type {
@@ -13,4 +14,5 @@ export type {
   PagewaySnapshot,
   PagewayToolCall,
   PagewayToolInfo,
+  PagewayToolResult,
 } from './types.js';

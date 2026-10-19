@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — 2026-10-19
+
+- Accept an OpenAI-compatible `apiOrigin`, model and optional completion path directly in the React provider. The browser owns planning, tool execution and result continuation; existing AG-UI endpoints remain supported.
+- Add an optional streaming OpenAI credential proxy with a fixed upstream, model allowlist, request limits, timeout and cancellation. Application backends no longer need to implement Pageway's agent protocol.
+- Add opt-in localStorage conversation and action history with version validation, expiry, identity isolation and explicit reset. Restoring history never replays tools or restores application business data.
+- Expose registered tools and current page context through WebMCP when supported, including pages with no chat backend. External agents share validation, animations, locking and cancellation with chat tasks.
+- Add a repository skill for integrating React 18/19 applications, OpenAI and WebMCP-only examples, browser contracts, and a credential-free real-model smoke check.
+
 ## 0.1.3 — 2026-10-19
 
 - Support React 18 and 19, starting with React 18.0.0, without requiring consumers to upgrade React.

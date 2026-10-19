@@ -1,6 +1,6 @@
-// Next.js App Router: app/api/agent/route.ts
-// 其他 Fetch API 服务端框架可将同一个 handler 挂载到 POST /api/agent。
-import { createAgentHandler } from '@zllling/pageway-agent';
+// Next.js App Router: app/api/openai/chat/completions/route.ts
+// 已有 OpenAI 兼容代理可直接复用，不必安装这个可选服务端包。
+import { createOpenAIProxyHandler } from '@zllling/pageway-agent';
 
 export const runtime = 'nodejs';
 
@@ -10,11 +10,9 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-export const POST = createAgentHandler({
-  mode: 'openai',
+export const POST = createOpenAIProxyHandler({
   baseURL: requiredEnv('MODEL_BASE_URL'), // Chat Completions API 的基础地址
-  model: requiredEnv('MODEL_NAME'),
+  allowedModels: [requiredEnv('MODEL_NAME')], // 与前端 model 一致
   apiKey: process.env.MODEL_API_KEY, // 仅保留在服务端
   timeoutMs: 180_000,
-  systemPrompt: '根据注册的工具操作页面，并依据工具的实际结果回复用户。',
 });

@@ -7,6 +7,10 @@ const root = document.getElementById('root');
 if (!root) throw new Error('The playground root element is missing.');
 ReactDOM.createRoot(root).render(
   <React.StrictMode>
-    <App />
+    <App
+      apiOrigin={import.meta.env.VITE_API_ORIGIN || undefined}
+      model={import.meta.env.VITE_MODEL_NAME || undefined}
+      storageKey={import.meta.env.VITE_STORAGE_KEY || undefined}
+    />
   </React.StrictMode>,
 );

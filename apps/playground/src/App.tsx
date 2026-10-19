@@ -166,24 +166,54 @@ const schema = (properties: Record<string, unknown>, required: string[] = []) =>
 
 interface AppProps {
   endpoint?: string;
+  apiOrigin?: string;
+  apiPath?: string;
+  model?: string;
+  storageKey?: string;
   fetch?: typeof globalThis.fetch;
   browserDemo?: boolean;
+  webmcpOnly?: boolean;
 }
 
-export default function App({ endpoint, fetch: fetcher, browserDemo = false }: AppProps) {
+export default function App({
+  endpoint,
+  apiOrigin,
+  apiPath,
+  model,
+  storageKey,
+  fetch: fetcher,
+  browserDemo = false,
+  webmcpOnly = false,
+}: AppProps) {
+  const transport = apiOrigin
+    ? { apiOrigin, apiPath, model }
+    : webmcpOnly
+      ? {}
+      : { endpoint: endpoint ?? (import.meta.env.VITE_AGENT_ENDPOINT || '/api/agent') };
   return (
-    <PagewayProvider
-      endpoint={endpoint ?? (import.meta.env.VITE_AGENT_ENDPOINT || '/api/agent')}
-      fetch={fetcher}
-      animationDuration={900}
-    >
-      <Workspace browserDemo={browserDemo} />
+    <PagewayProvider {...transport} storageKey={storageKey} fetch={fetcher} animationDuration={900}>
+      <Workspace
+        browserDemo={browserDemo}
+        webmcpOnly={webmcpOnly}
+        apiOrigin={apiOrigin}
+        model={model}
+      />
       <PagewayOverlay />
     </PagewayProvider>
   );
 }
 
-function Workspace({ browserDemo }: { browserDemo: boolean }) {
+function Workspace({
+  browserDemo,
+  webmcpOnly,
+  apiOrigin,
+  model,
+}: {
+  browserDemo: boolean;
+  webmcpOnly: boolean;
+  apiOrigin?: string;
+  model?: string;
+}) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [filters, setFilters] = useState({ status: 'all', priority: 'all', query: '' });
   const [view, setView] = useState<'board' | 'list'>('board');
@@ -218,9 +248,15 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
     model?: string;
     status?: string;
     provider?: string;
-  } | null>(browserDemo ? { mode: 'demo', provider: 'browser', status: 'ready' } : null);
+  } | null>(
+    browserDemo
+      ? { mode: 'demo', provider: 'browser', status: 'ready' }
+      : apiOrigin
+        ? { mode: 'openai', provider: apiOrigin, model, status: 'ready' }
+        : null,
+  );
   const [copied, setCopied] = useState(false);
-  const [chatVisible, setChatVisible] = useState(true);
+  const [chatVisible, setChatVisible] = useState(!webmcpOnly);
   const agent = usePageway();
   const visibleTasks = useMemo(
     () =>
@@ -233,12 +269,12 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
     [tasks, filters],
   );
   useEffect(() => {
-    if (browserDemo) return;
+    if (browserDemo || apiOrigin || webmcpOnly) return;
     fetch('/api/health')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setHealth)
       .catch(() => setHealth({ status: 'offline' }));
-  }, [browserDemo]);
+  }, [browserDemo, apiOrigin, webmcpOnly]);
   usePageContext({
     id: 'workspace',
     title: 'Website relaunch workspace',
@@ -355,7 +391,9 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
     setTab('workspace');
   }
   const busy = agent.status === 'running';
-  const online = health && health.status !== 'offline';
+  const online = webmcpOnly
+    ? agent.webmcp.status === 'ready'
+    : health && health.status !== 'offline';
   const isLive = health?.mode === 'openai';
   const providerEvent = [...agent.events]
     .reverse()
@@ -375,7 +413,12 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
     : health?.provider?.includes('blockrun.ai')
       ? 'BlockRun'
       : 'Model API';
-  const snippet = `import { PagewayProvider, PagewayChat,\n  PagewayOverlay, usePageTool } from '@zllling/pageway-react';\nimport '@zllling/pageway-react/styles.css';\n\n<PagewayProvider endpoint="/api/agent">\n  <YourApp />\n  <PagewayChat />\n  <PagewayOverlay />\n</PagewayProvider>`;
+  const providerExample = webmcpOnly
+    ? '<PagewayProvider webmcp>'
+    : apiOrigin
+      ? '<PagewayProvider apiOrigin="/api/openai" model="your-model"\n  storageKey="pageway:current-user:workspace">'
+      : '<PagewayProvider endpoint="/api/agent">';
+  const snippet = `import { PagewayProvider, PagewayChat,\n  PagewayOverlay, usePageTool } from '@zllling/pageway-react';\nimport '@zllling/pageway-react/styles.css';\n\n${providerExample}\n  <YourApp />${webmcpOnly ? '' : '\n  <PagewayChat />'}\n  <PagewayOverlay />\n</PagewayProvider>`;
   return (
     <div className={`app-shell ${chatVisible ? '' : 'chat-hidden'}`}>
       <aside className="sidebar">
@@ -393,7 +436,14 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
         <button type="button" className="workspace-picker" onClick={() => setTab('workspace')}>
           <span className="workspace-avatar">P</span>
           <span>
-            Personal workspace<small>{browserDemo ? 'Browser demo' : 'Developer playground'}</small>
+            Personal workspace
+            <small>
+              {webmcpOnly
+                ? 'WebMCP workspace'
+                : browserDemo
+                  ? 'Browser demo'
+                  : 'Developer playground'}
+            </small>
           </span>
           <ChevronDown size={14} />
         </button>
@@ -438,15 +488,23 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
             <Sparkles size={18} />
           </div>
           <strong>A little less clicking.</strong>
-          <p>Let your agent take it from here. Your interface already knows how.</p>
+          <p>
+            {webmcpOnly
+              ? 'External browser agents can use this page’s registered tools without an agent server.'
+              : 'Let your agent take it from here. Your interface already knows how.'}
+          </p>
           <button
             type="button"
             onClick={() => {
+              if (webmcpOnly) {
+                setTab('tools');
+                return;
+              }
               setChatVisible(true);
               void agent.sendMessage('Show high priority tasks');
             }}
           >
-            Try your first action <ArrowUpRight size={14} />
+            {webmcpOnly ? 'Explore page tools' : 'Try your first action'} <ArrowUpRight size={14} />
           </button>
         </div>
         <div className="sidebar-bottom">
@@ -494,24 +552,34 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
         <div className="topbar-right">
           <span className={`connection ${online ? '' : 'offline'}`}>
             <i />
-            {browserDemo
-              ? 'Browser demo ready'
-              : online
-                ? 'Agent connected'
-                : health
-                  ? 'Agent offline'
-                  : 'Connecting'}
+            {webmcpOnly
+              ? agent.webmcp.status === 'ready'
+                ? 'WebMCP tools ready'
+                : agent.webmcp.status === 'unsupported'
+                  ? 'WebMCP unavailable'
+                  : `WebMCP ${agent.webmcp.status}`
+              : apiOrigin
+                ? 'OpenAI endpoint configured'
+                : browserDemo
+                  ? 'Browser demo ready'
+                  : online
+                    ? 'Agent connected'
+                    : health
+                      ? 'Agent offline'
+                      : 'Connecting'}
           </span>
           <span className="topbar-divider" />
-          <button
-            type="button"
-            className="icon-button"
-            title={chatVisible ? 'Hide agent panel' : 'Show agent panel'}
-            aria-label={chatVisible ? 'Hide agent panel' : 'Show agent panel'}
-            onClick={() => setChatVisible(!chatVisible)}
-          >
-            <MessageSquare size={18} />
-          </button>
+          {!webmcpOnly && (
+            <button
+              type="button"
+              className="icon-button"
+              title={chatVisible ? 'Hide agent panel' : 'Show agent panel'}
+              aria-label={chatVisible ? 'Hide agent panel' : 'Show agent panel'}
+              onClick={() => setChatVisible(!chatVisible)}
+            >
+              <MessageSquare size={18} />
+            </button>
+          )}
           <span className="avatar avatar-you">Y</span>
         </div>
       </header>
@@ -532,7 +600,9 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
             </h1>
             <p>
               {tab === 'workspace'
-                ? 'A real workspace. A conversational copilot. Try what happens next.'
+                ? webmcpOnly
+                  ? 'Registered tools, shared page animations, and external agents. No chat endpoint required.'
+                  : 'A real workspace. A conversational copilot. Try what happens next.'
                 : tab === 'tools'
                   ? 'Explicit, typed capabilities your agent can use on this page.'
                   : tab === 'events'
@@ -550,27 +620,42 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
             <Bot size={16} />
             <b
               title={
-                isLive
-                  ? `${gatewayName} · ${displayModel}${providerInfo?.fallback ? ' (free pool fallback)' : ''}`
-                  : 'Local deterministic planner'
+                webmcpOnly
+                  ? 'Browser WebMCP API availability'
+                  : isLive
+                    ? `${gatewayName} · ${displayModel}${providerInfo?.fallback ? ' (free pool fallback)' : ''}`
+                    : 'Local deterministic planner'
               }
             >
-              {isLive ? displayModel : 'Demo agent'}
+              {webmcpOnly ? 'External browser agents' : isLive ? displayModel : 'Demo agent'}
             </b>
-            <span className="strip-tag">{isLive ? 'LIVE API' : 'NO KEY NEEDED'}</span>
+            <span className="strip-tag">
+              {webmcpOnly ? 'NO BACKEND' : isLive ? 'LIVE API' : 'NO KEY NEEDED'}
+            </span>
           </span>
           <span>
             <Workflow size={15} />6 page tools
           </span>
           <span>
             <Radio size={15} />
-            AG-UI protocol
+            {webmcpOnly
+              ? `${agent.webmcp.registered.length} WebMCP tools`
+              : apiOrigin
+                ? 'OpenAI Chat Completions'
+                : 'AG-UI protocol'}
           </span>
           <button type="button" disabled={busy} onClick={resetDemo}>
             <RotateCcw size={14} />
             Reset demo
           </button>
         </div>
+        {webmcpOnly && agent.webmcp.status !== 'ready' && (
+          <p role="status" className="registry-note">
+            {agent.webmcp.status === 'unsupported'
+              ? 'This browser does not expose WebMCP. Open this page in a compatible browser to let an external agent discover and invoke its tools.'
+              : (agent.webmcp.error ?? 'Registering page tools with the browser…')}
+          </p>
+        )}
         {tab === 'workspace' && (
           <>
             <section className="project-section">
@@ -817,18 +902,30 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
                 <Sparkles size={18} />
               </span>
               <div>
-                <strong>See a request become an action.</strong>
-                <p>Ask the agent to “show high priority tasks” and watch the page respond.</p>
+                <strong>
+                  {webmcpOnly
+                    ? 'Your page is ready for an external agent.'
+                    : 'See a request become an action.'}
+                </strong>
+                <p>
+                  {webmcpOnly
+                    ? 'Use a WebMCP-capable browser agent to discover pageway_get_context and the six workspace tools.'
+                    : 'Ask the agent to “show high priority tasks” and watch the page respond.'}
+                </p>
               </div>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => {
+                  if (webmcpOnly) {
+                    setTab('tools');
+                    return;
+                  }
                   setChatVisible(true);
                   void agent.sendMessage('Show high priority tasks');
                 }}
               >
-                Try it now <ArrowRight size={15} />
+                {webmcpOnly ? 'View registered tools' : 'Try it now'} <ArrowRight size={15} />
               </button>
             </div>
             <section className="activity-section">
@@ -909,15 +1006,17 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
                 <Radio size={28} />
                 <h3>Listening for your first request</h3>
                 <p>Send a message to see text, tool calls, and run events arrive.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setChatVisible(true);
-                    void agent.sendMessage('What is on this page?');
-                  }}
-                >
-                  Inspect this page <ArrowRight size={14} />
-                </button>
+                {!webmcpOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatVisible(true);
+                      void agent.sendMessage('What is on this page?');
+                    }}
+                  >
+                    Inspect this page <ArrowRight size={14} />
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -968,10 +1067,18 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
               </div>
               <div>
                 <span>02</span>
-                <strong>Connect the agent</strong>
+                <strong>{webmcpOnly ? 'Expose WebMCP tools' : 'Connect the agent'}</strong>
                 <p>
-                  Use <code>createAgentHandler</code> with a standard model API and expose an HTTP
-                  endpoint.
+                  {webmcpOnly ? (
+                    'Pageway registers the same typed tools with the browser. External agents execute them through WebMCP.'
+                  ) : apiOrigin ? (
+                    'Point apiOrigin at an OpenAI-compatible proxy. Keep model API keys in that server.'
+                  ) : (
+                    <>
+                      Use <code>createAgentHandler</code> with a standard model API and expose an
+                      HTTP endpoint.
+                    </>
+                  )}
                 </p>
               </div>
               <div>
@@ -997,11 +1104,11 @@ function Workspace({ browserDemo }: { browserDemo: boolean }) {
           </span>
           <span>Typed tools. Visible actions. Your interface.</span>
           <span>
-            v0.1.2 <span className="little-dot" /> Developer preview
+            v0.2.0 <span className="little-dot" /> Developer preview
           </span>
         </footer>
       </main>
-      {chatVisible && (
+      {chatVisible && !webmcpOnly && (
         <aside className="agent-panel">
           <div className="agent-panel-top">
             <span className="agent-symbol">

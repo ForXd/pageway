@@ -2,14 +2,19 @@
 
 线上地址：[Pageway 文档与演示](https://forxd.github.io/pageway/)。
 直接体验：[任务看板演示](https://forxd.github.io/pageway/demo/)。
+浏览器 Agent：[WebMCP-only 演示](https://forxd.github.io/pageway/webmcp/)。
 
-站点位于 `apps/site`，使用 Vite 构建两个 HTML 入口：文档首页和 `demo/` 演示页。所有资源都以 `/pageway/` 为基路径，文档章节使用 hash 链接，因此在 GitHub Pages 的项目子路径中直接访问、刷新和分享章节都不需要服务端路由。
+站点位于 `apps/site`，使用 Vite 构建文档首页、`demo/` 规则演示和 `webmcp/` 浏览器 Agent 页面。所有资源都以 `/pageway/` 为基路径，文档章节使用 hash 链接，因此在 GitHub Pages 的项目子路径中直接访问、刷新和分享章节都不需要服务端路由。
 
 ## 演示如何工作
 
 演示复用 Playground 的 React 页面、注册工具、任务锁定、光标动画和操作路径。浏览器中的确定性规划器使用真实 Agent 包的 `demo` 模式，经 AG-UI SSE 协议返回工具调用；React 执行工具后，将执行结果和最新页面上下文回传给规划器，再显示确认消息。
 
-该流程全部在当前浏览器标签页运行，不请求模型 API，不需要 API Key，也不会将访客输入上传到后端。它支持页面列出的任务操作示例，不提供开放式大模型对话。刷新演示页会恢复初始工作区。生产接入方式见站内 React 与 Agent 示例：模型密钥保存在独立部署的 Agent 服务中，前端只配置该服务的 HTTP 地址。GitHub Pages 只托管静态文件，不能运行该 Agent 服务。
+该流程全部在当前浏览器标签页运行，不请求模型 API，不需要 API Key，也不会将访客输入上传到后端。它支持页面列出的任务操作示例，不提供开放式大模型对话。刷新演示页会恢复初始工作区，演示未启用会话缓存。生产接入方式见站内 React 与代理示例：前端设置 `apiOrigin` / `model`，模型密钥保存在独立部署的兼容网关或凭证代理中。GitHub Pages 只托管静态文件，不能运行该服务。
+
+文档包含 React、普通模型代理、AG-UI 兼容服务及 WebMCP-only 的 TypeScript 源文件，展示内容由源码原文导入，参与项目类型检查。会话缓存和 WebMCP 章节分别说明 localStorage 的恢复边界与浏览器实验支持要求。默认启用 WebMCP 不代表当前访客浏览器一定具备该能力；以 `usePageway().webmcp.status` 为准。
+
+`webmcp/` 不挂载聊天模块、不配置模型或 Agent HTTP 地址。它复用真实看板工具、上下文和 Overlay；支持 WebMCP 的外部 Agent 可通过浏览器调用它们，不支持时显示不可用状态且仍可手动操作页面。此静态入口不申请浏览器实验权限，也不模拟原生 API。
 
 ## 本地构建与验证
 

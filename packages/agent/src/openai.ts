@@ -7,10 +7,14 @@ import { createProviderReporter } from './provider-info.js';
 export interface OpenAIOptions {
   /** API root ending in /v1 (or a provider-specific equivalent). */
   baseURL: string;
+  /** Completion route appended to baseURL, preserving its existing path. */
+  apiPath?: string;
   /** Optional for local or anonymous compatible endpoints. Never sent to the browser. */
   apiKey?: string;
   model: string;
   fetch?: typeof globalThis.fetch;
+  /** Application authentication headers; a server apiKey overrides Authorization. */
+  headers?: Record<string, string>;
   systemPrompt?: string;
 }
 
@@ -26,7 +30,7 @@ Do not claim an action succeeded until the subsequent tool result confirms it. A
 If a tool result reports an error, explain it and ask for clarification where needed. Do not retry a failed mutation blindly.
 Use the language the user used. Do not expose hidden reasoning. Describe only the short action plan.`;
 
-export function completionURL(baseURL: string): string {
+export function completionURL(baseURL: string, apiPath = 'chat/completions'): string {
   const url = new URL(baseURL);
   if (
     !['https:', 'http:'].includes(url.protocol) ||
@@ -37,7 +41,14 @@ export function completionURL(baseURL: string): string {
   ) {
     throw new Error('baseURL must be an HTTP(S) API root without credentials, query or fragment.');
   }
-  return `${url.toString().replace(/\/+$/, '')}/chat/completions`;
+  const path = apiPath.replace(/^\/+/, '');
+  if (
+    !path ||
+    !/^[a-zA-Z0-9_./-]+$/.test(path) ||
+    path.split('/').some((part) => part === '.' || part === '..')
+  )
+    throw new Error('apiPath must be a relative API path without traversal, query or fragment.');
+  return `${url.toString().replace(/\/+$/, '')}/${path}`;
 }
 
 export function toCompletionMessages(
@@ -83,37 +94,40 @@ export async function streamCompletion(
   emit: Emit,
   signal: AbortSignal,
 ): Promise<void> {
-  const response = await (options.fetch ?? globalThis.fetch)(completionURL(options.baseURL), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      ...(options.apiKey ? { Authorization: `Bearer ${options.apiKey}` } : {}),
-    },
-    body: JSON.stringify({
-      model: options.model,
-      stream: true,
-      messages: toCompletionMessages(input, options.systemPrompt),
-      ...(input.tools.length
-        ? {
-            tools: input.tools.map((tool) => ({
-              type: 'function',
-              function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.parameters ?? {
-                  type: 'object',
-                  properties: {},
-                  additionalProperties: false,
+  const headers = new Headers(options.headers);
+  headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'text/event-stream');
+  if (options.apiKey) headers.set('Authorization', `Bearer ${options.apiKey}`);
+  const response = await (options.fetch ?? globalThis.fetch)(
+    completionURL(options.baseURL, options.apiPath),
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: options.model,
+        stream: true,
+        messages: toCompletionMessages(input, options.systemPrompt),
+        ...(input.tools.length
+          ? {
+              tools: input.tools.map((tool) => ({
+                type: 'function',
+                function: {
+                  name: tool.name,
+                  description: tool.description,
+                  parameters: tool.parameters ?? {
+                    type: 'object',
+                    properties: {},
+                    additionalProperties: false,
+                  },
                 },
-              },
-            })),
-            tool_choice: 'auto',
-          }
-        : {}),
-    }),
-    signal,
-  });
+              })),
+              tool_choice: 'auto',
+            }
+          : {}),
+      }),
+      signal,
+    },
+  );
   if (!response.ok) {
     // Provider response bodies can contain tokens, echoed prompts or account data.
     await response.body?.cancel();

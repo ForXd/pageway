@@ -1,5 +1,19 @@
 # 验证记录
 
+## 前端模型循环、缓存与 WebMCP（2026-10-19）
+
+`0.2.0` 增加 `apiOrigin` 模型接入、可选 `createOpenAIProxyHandler`、localStorage 会话缓存和 WebMCP 注册。原有 AG-UI `endpoint` 继续兼容。以下分别记录真实模型、浏览器能力和确定性测试，不混用结论。
+
+- `pnpm check:model:frontend` **通过**。脚本固定匿名 Kilo `nvidia/nemotron-3.5-lightning:free`，先验证模型目录 `isFree` 与输入/输出价格为零，不读取 `.env` 或用户密钥。
+- 完整链路：Node 中的真实前端引擎配置 apiOrigin → 本地临时 HTTP 普通模型代理 → 外部真实 SSE → 模型调用 `complete_item` → 合成业务对象改为 done → 工具结果回传 → 第二轮模型准确回复只在结果中生成的 `PAGEWAY-b477078c-60c9-4ea0-8106-03dfb43d3e70`。共 **2 次 completion**，未使用用户付费模型。
+- 这项实测确认新的前端循环和标准 HTTP 代理可以与真实免费模型往返；它在 Node 运行，没有把该结果冒充为浏览器 DOM 或原生 WebMCP 实测。
+- 用户当前 Chrome 的 WebMCP-only 页面显示 **WebMCP unavailable**，Pageway 工具 6 个、WebMCP 工具 0 个，无控制台错误。没有修改浏览器实验开关；因此未宣称在该 Chrome 完成原生外部 Agent 调用。
+- WebMCP 注册、执行、取消和清理使用规范对应的 API fixture 做单测及浏览器验证；真实原生能力仍取决于浏览器和 Agent。已核对 [2026-10-16 规范](https://webmachinelearning.github.io/webmcp/)及 [Chrome 官方指南](https://developer.chrome.com/docs/ai/webmcp/imperative-api)。
+
+本地最终检查：235 项单元/集成测试、48 项应用 E2E、12 项站点 E2E 全部通过。行覆盖率 95.64%，分支覆盖率 86.26%；Biome、Prettier、全仓库类型检查与构建通过。真实 tarball 在 React 18.0.0、18.2.0、18.3.1、19.3.1 的独立消费者中通过安装、SSR、类型与客户端流程检查。集成 skill 校验与四个代码示例类型检查通过。
+
+该版本最终质量门禁及发布结果以对应 [GitHub Actions](https://github.com/ForXd/pageway/actions) 为准。缓存恢复不会再次执行工具，也不恢复任务看板业务数据。
+
 ## React 18 / 19 兼容验证（2026-10-19）
 
 `0.1.3` 将 React / React DOM peer 范围扩展为 `^18.0.0 || ^19.0.0`，使用各自独立安装的真实 tarball 验证 React 18.0.0、18.2.0、18.3.1 和 19.3.1。

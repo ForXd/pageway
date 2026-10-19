@@ -2,6 +2,12 @@
 
 AG-UI contracts and SSE transport utilities for [Pageway](https://github.com/ForXd/pageway).
 
+Pageway 0.2 uses these events as its internal execution contract. With React
+`apiOrigin`, the HTTP boundary remains ordinary OpenAI Chat Completions and the
+browser performs the event adaptation. Existing `endpoint` integrations continue
+to send AG-UI requests and events over HTTP. WebMCP tool calls use the browser API
+and the shared frontend executor, without requiring an AG-UI server.
+
 ```sh
 pnpm add @zllling/pageway-protocol
 ```

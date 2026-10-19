@@ -42,7 +42,10 @@ export interface ActionStep {
   startedAt: number;
   endedAt?: number;
   target?: string;
+  source?: 'chat' | 'webmcp';
 }
+
+export type PagewayToolResult = { ok: true; result: unknown } | { ok: false; error: string };
 
 export interface PagewayEvent {
   type: string;
@@ -75,7 +78,12 @@ export interface PagewaySnapshot {
 }
 
 export interface PagewayEngineOptions {
-  endpoint: string;
+  /** Legacy AG-UI endpoint. Use apiOrigin for an OpenAI-compatible proxy. */
+  endpoint?: string;
+  apiOrigin?: string;
+  apiPath?: string;
+  model?: string;
+  timeoutMs?: number;
   headers?: Record<string, string>;
   animationDuration?: number;
   getTools: () => PageTool[];
