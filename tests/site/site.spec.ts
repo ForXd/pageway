@@ -69,11 +69,14 @@ test('a visitor can start the embedded demo and open its standalone page', async
   await expect(page.locator('iframe')).toHaveCount(0);
   await page.getByRole('button', { name: '启动交互演示', exact: true }).click();
   const demo = page.frameLocator('iframe[title="Pageway 任务看板交互演示"]');
-  await expect(demo.getByText('Browser demo ready', { exact: true })).toBeVisible();
+  await expect(demo.getByText('OpenAI endpoint configured', { exact: true })).toBeVisible();
+  await expect(demo.getByText('无需登录或 API Key', { exact: false })).toBeVisible();
   await expect(demo.getByRole('textbox', { name: 'Message Pageway' })).toBeVisible();
   const [standalonePage] = await Promise.all([page.waitForEvent('popup'), standalone.click()]);
   await expect(standalonePage).toHaveURL(/\/pageway\/demo\/$/);
-  await expect(standalonePage.getByText('Browser demo ready', { exact: true })).toBeVisible();
+  await expect(
+    standalonePage.getByText('OpenAI endpoint configured', { exact: true }),
+  ).toBeVisible();
   await standalonePage.close();
   await expectNoOverflow(page);
 });

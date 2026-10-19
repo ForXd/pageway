@@ -44,9 +44,7 @@ function Brand() {
       <span className="brand-mark" aria-hidden="true">
         <GitBranch size={23} strokeWidth={2} />
       </span>
-      <span>
-        Pageway<span className="brand-cn">页径</span>
-      </span>
+      <span>Pageway</span>
     </a>
   );
 }
@@ -126,7 +124,7 @@ function Demo() {
           <span className="demo-address">pageway / playground</span>
           <span className="local-badge">
             <span />
-            本地规则演示
+            免费模型 / 本地演示
           </span>
           {started && (
             <button
@@ -203,7 +201,7 @@ function Demo() {
                 <MousePointer2 size={27} aria-hidden="true" />
               </span>
               <h3>把下一步，交给 Pageway。</h3>
-              <p>无需登录，无需 API Key。直接体验工具调用、动画与结果回传。</p>
+              <p>无需登录或 API Key。让免费模型操作页面，查看动画与执行回执。</p>
               <button
                 className="button button-primary"
                 type="button"
@@ -219,9 +217,12 @@ function Demo() {
       <div className="demo-footnote">
         <p>
           <span className="small-dot" />
-          演示在浏览器内使用确定性规划器，不连接大模型，也不发送模型请求。
+          默认使用 Pollinations 免费模型；发送的消息和演示数据会交给该服务，请勿输入敏感信息。
         </p>
-        <p>操作会锁定演示画布；使用 Stop task 或 Esc 结束。刷新后数据重置。</p>
+        <p>
+          免费服务可能排队或限流，也可手动切换本地演示。Stop task 或 Esc
+          可结束任务；切换或刷新会重置数据。
+        </p>
       </div>
       <div className="try-prompts">
         <span>在演示聊天框试试</span>
@@ -610,9 +611,11 @@ export function App() {
                 </div>
               </div>
               <p>
-                模型凭证始终保留在后端。GitHub Pages
-                仅托管静态文件，本站演示使用浏览器内的规则规划器；部署真实模型时，将 Provider 的{' '}
-                <code>apiOrigin</code> 指向你自己的兼容代理，或允许浏览器匿名访问的模型 API。
+                GitHub Pages 仅托管静态文件；本站通过允许匿名和 CORS 的 Pollinations API
+                直接调用免费模型。前端设置 <code>apiOrigin="https://text.pollinations.ai/v1"</code>{' '}
+                和 <code>model="openai-fast"</code>{' '}
+                即可接入，无需密钥。生产应用接入有密钥的模型时，将 <code>apiOrigin</code>{' '}
+                指向自己的兼容代理，模型凭证留在后端。
               </p>
               <details className="code-details">
                 <summary>
@@ -918,7 +921,7 @@ export function App() {
                 <div>
                   <h3>演示与真实模型</h3>
                   <p>
-                    本站规则演示只识别任务看板的有限指令。自己的工具需要配置真实模型；免费服务的可用性、额度与时延由服务商决定。
+                    本站默认连接真实免费模型，可手动切换为仅识别有限指令的本地规则演示。免费服务的可用性、额度与时延由服务商决定；失败时不会自动切换成规则回复。
                   </p>
                 </div>
               </div>

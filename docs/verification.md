@@ -1,5 +1,16 @@
 # 验证记录
 
+## Pages 免费模型直连（2026-10-19）
+
+公开演示默认使用 Pollinations Classic：`apiOrigin=https://text.pollinations.ai/v1`、`model=openai-fast`，实际响应模型为 `gpt-oss-20b`。匿名模型及工具能力以 [实时目录](https://text.pollinations.ai/models) 为准；限额和流式排队见 [官方 Classic 文档](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md)。
+
+- 对 `https://forxd.github.io` Origin 的 OPTIONS 预检和真实 POST 响应都返回 `Access-Control-Allow-Origin: *`。限流响应的 `Retry-After` 通过 `Access-Control-Expose-Headers` 暴露给浏览器。Kilo 和 BlockRun 本次预检缺少跨域响应头，未用于 Pages 直连。
+- 匿名 HTTP 工具往返及标准 SSE 已验证：模型调用 `update_task`，接收工具结果后准确复述现场随机凭据。没有认证或支付请求。
+- 用户 Chrome 打开本地生产构建，发送“请把 PW-103 标记为完成，然后根据工具返回的结果告诉我任务标题和最新状态。”真实请求直达免费模型；React 页面中的 PW-103 从 In progress 移到 Done，操作轨迹显示一项成功，模型续答“Connect the agent API”已标记为 done。页脚核对实际响应模型 `gpt-oss-20b`，任务结束后页面解锁。没有启动模型代理，也未使用付费密钥。
+- 自动化验证使用拦截的标准模型响应，不访问外部模型：覆盖页面工具结果和最新上下文回传、匿名请求、首次加载不消耗额度、限流错误、取消、手动切换与状态重置。传输单测覆盖指定端点/模型、禁止凭证、有界 Retry-After 重试及等待期间取消。
+
+切换或刷新会清空公开演示聊天与业务状态。失败不会自动切换成本地规则；访客可以手动选择 `?mode=local`。免费服务按 IP 限流，至少间隔 30 秒；一次工具往返可能需要多轮等待，服务可用性不作为确定性 CI 的依赖。
+
 ## 前端模型循环、缓存与 WebMCP（2026-10-19）
 
 `0.2.1` 发布的功能包括 `apiOrigin` 模型接入、可选 `createOpenAIProxyHandler`、localStorage 会话缓存和 WebMCP 注册。原有 AG-UI `endpoint` 继续兼容。以下分别记录真实模型、浏览器能力和确定性测试，不混用结论。

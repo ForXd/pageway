@@ -1,8 +1,30 @@
 # 模型 API 接入与验证
 
-最近前端完整链路核验：**2026-10-19（Asia/Shanghai）**。下面保留 2026-10-17 的供应商探测记录；免费策略和目录可能变化。
+最近前端完整链路核验：**2026-10-19（Asia/Shanghai）**。GitHub Pages 演示使用 Pollinations Classic 匿名接口；本地代理检查保留 Kilo 配置。下面也保留 2026-10-17 的供应商探测记录；免费策略和目录可能变化。
 
 Pageway 的真实模型模式接入 **OpenAI Chat Completions 兼容 API**。模型需要支持 `tools`、结构化 `tool_calls` 和 `role: "tool"` 的结果回传。0.2 起前端指定 `apiOrigin` 和 `model`，模型 API Key 仅在兼容网关或凭证代理服务端配置；已有 AG-UI 服务仍通过 `endpoint` 接入。
+
+## GitHub Pages 匿名免费模型直连
+
+[公开演示](https://forxd.github.io/pageway/demo/) 默认使用 Pollinations Classic：不需要 API Key，浏览器通过 CORS 直接请求 `POST https://text.pollinations.ai/v1/chat/completions`（官方 `/openai` 接口的兼容路径）。当前模型 ID 为 `openai-fast`，目录标记匿名可用、支持工具，实际模型为 GPT-OSS 20B。静态站无需运行 Agent 后端。[官方文档](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md) · [实时模型目录](https://text.pollinations.ai/models)
+
+```tsx
+<PagewayProvider
+  apiOrigin="https://text.pollinations.ai/v1"
+  model="openai-fast"
+  timeoutMs={180_000}
+>
+  {/* 页面、PagewayChat 与 PagewayOverlay */}
+</PagewayProvider>
+```
+
+2026-10-19 的 HTTP 核验确认预检及实际响应包含 `Access-Control-Allow-Origin: *`，匿名流式请求能返回结构化工具调用；提交工具结果后，模型准确回复结果中独有的回执。此记录验证接口协议与跨域响应，不等同于所有浏览器环境均可访问。
+
+官方匿名文本限制为同一个 IP 同时一个请求、请求至少间隔 30 秒；流式请求会等待下一时段。超额可能返回 HTTP 402 和 `Retry-After`，服务没有可用性保证。页面会显示请求失败，用户可稍后重试或主动切换“本地演示”；不会自动把规则回复当作模型回复。一次页面工具任务通常需要至少两轮请求，因此可能有明显等待。[额度与服务边界](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md#limits)
+
+公开演示只在发送消息时提交输入和演示业务状态给 Pollinations，不要求任何密钥，请勿输入敏感信息。它不启用会话缓存；切换模式会清空聊天并恢复工作区。本地模式 `?mode=local` 完全在浏览器内运行有限规则，不调用外部模型。
+
+这类匿名接口适合公开体验。生产应用使用自己的兼容网关或凭证代理来管理模型、额度和用户权限；供应商密钥始终留在服务端，不写入 GitHub Pages 构建产物。
 
 ## 推荐接入：浏览器循环 + 普通模型代理
 
@@ -42,7 +64,7 @@ pnpm check:model:frontend
 
 2026-10-19 该检查通过：模型调用 `complete_item`，工具将合成对象改为 done，第二轮准确返回 `PAGEWAY-b477078c-60c9-4ea0-8106-03dfb43d3e70`。共两次 completion，未使用付费模型或用户密钥。详细证据见 [验证记录](verification.md)。
 
-## 首选：Kilo Gateway 免费模型
+## 本地代理检查：Kilo Gateway 免费模型
 
 Kilo 官方允许外部应用通过 OpenAI 兼容接口调用模型，当前 API 根地址为 `https://ai-gateway.kilo.ai/api/v1`。Chat Completions 接口支持 SSE、函数调用及工具结果消息。[官方 API 文档](https://kilo.ai/docs/gateway/api-reference)
 

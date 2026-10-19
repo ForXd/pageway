@@ -4,9 +4,14 @@ export const lockSelector = 'dialog[data-pageway-lock="true"][open]';
 
 export const test = base.extend<{ siteErrors: string[] }>({
   siteErrors: [
-    async ({ page, baseURL }, use) => {
+    async ({ page, context, baseURL }, use) => {
       const errors: string[] = [];
       const origin = new URL(baseURL ?? 'http://127.0.0.1:4190').origin;
+      // Site tests use explicit page routes for model responses. Never let a
+      // public provider receive prompts or consume its quota during CI.
+      await context.route('**/*', (route) =>
+        new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
+      );
       page.on('pageerror', (error) => errors.push(error.message));
       page.on('console', (message) => {
         const url = message.location().url;
@@ -31,7 +36,7 @@ export const test = base.extend<{ siteErrors: string[] }>({
 export { expect };
 
 export async function openDemo(page: Page) {
-  const response = await page.goto('demo/');
+  const response = await page.goto('demo/?mode=local');
   expect(response?.ok()).toBe(true);
   await expect(page.getByText('Browser demo ready', { exact: true })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Message Pageway' })).toBeVisible();

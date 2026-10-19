@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   PagewayProvider,
   PagewayChat,
@@ -173,6 +173,7 @@ interface AppProps {
   fetch?: typeof globalThis.fetch;
   browserDemo?: boolean;
   webmcpOnly?: boolean;
+  demoNotice?: ReactNode;
 }
 
 export default function App({
@@ -184,6 +185,7 @@ export default function App({
   fetch: fetcher,
   browserDemo = false,
   webmcpOnly = false,
+  demoNotice,
 }: AppProps) {
   const transport = apiOrigin
     ? { apiOrigin, apiPath, model }
@@ -197,6 +199,7 @@ export default function App({
         webmcpOnly={webmcpOnly}
         apiOrigin={apiOrigin}
         model={model}
+        demoNotice={demoNotice}
       />
       <PagewayOverlay />
     </PagewayProvider>
@@ -208,11 +211,13 @@ function Workspace({
   webmcpOnly,
   apiOrigin,
   model,
+  demoNotice,
 }: {
   browserDemo: boolean;
   webmcpOnly: boolean;
   apiOrigin?: string;
   model?: string;
+  demoNotice?: ReactNode;
 }) {
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [filters, setFilters] = useState({ status: 'all', priority: 'all', query: '' });
@@ -412,7 +417,9 @@ function Workspace({
     ? 'Kilo Gateway'
     : health?.provider?.includes('blockrun.ai')
       ? 'BlockRun'
-      : 'Model API';
+      : health?.provider?.includes('pollinations.ai')
+        ? 'Pollinations'
+        : 'Model API';
   const providerExample = webmcpOnly
     ? '<PagewayProvider webmcp>'
     : apiOrigin
@@ -442,7 +449,9 @@ function Workspace({
                 ? 'WebMCP workspace'
                 : browserDemo
                   ? 'Browser demo'
-                  : 'Developer playground'}
+                  : demoNotice
+                    ? 'Online demo'
+                    : 'Developer playground'}
             </small>
           </span>
           <ChevronDown size={14} />
@@ -508,7 +517,7 @@ function Workspace({
           </button>
         </div>
         <div className="sidebar-bottom">
-          {browserDemo && (
+          {(browserDemo || demoNotice) && (
             <a href="../" target="_top">
               <ArrowUpRight size={16} />
               Pageway documentation
@@ -528,7 +537,9 @@ function Workspace({
             <span className="avatar avatar-you">Y</span>
             <span>
               Your workspace
-              <small>{browserDemo ? 'Changes stay in this tab' : 'Local development'}</small>
+              <small>
+                {browserDemo || demoNotice ? 'Changes stay in this tab' : 'Local development'}
+              </small>
             </span>
             <span className="version">v0.2</span>
           </div>
@@ -584,6 +595,7 @@ function Workspace({
         </div>
       </header>
       <main className="main-content">
+        {demoNotice}
         <div className="page-heading">
           <div>
             <div className="eyebrow">
