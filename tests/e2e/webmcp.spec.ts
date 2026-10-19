@@ -116,11 +116,17 @@ test('an external WebMCP agent discovers context, updates the real page with ani
 test('the user and an external agent can cancel WebMCP operations before mutation and recover the workspace', async ({
   page,
 }) => {
+  // Exercise cancellation while the executor is held before mutation; a slower
+  // Linux WebKit renderer must not turn this into a race against a 900 ms timer.
+  await page.clock.install({ time: new Date('2030-01-01T08:00:00Z') });
   await installWebMCPFixture(page);
   await page.goto('/webmcp.html');
   await expect(page.getByText('WebMCP tools ready', { exact: true })).toBeVisible();
+  await page.clock.pauseAt(new Date('2030-01-01T10:00:00Z'));
   for (const source of ['user', 'agent']) {
     await startExternalAction(page);
+    await expect(page.locator(lockSelector)).toHaveAttribute('data-pageway-phase', 'acting');
+    await page.clock.runFor(100);
     await expect(page.locator(`${lockSelector}[data-pageway-phase="moving"]`)).toBeVisible();
     if (source === 'user') await page.locator('[data-pageway-stop]').click();
     else await page.evaluate(() => window.pagewayWebMCPFixture.controller!.abort());
@@ -131,6 +137,7 @@ test('the user and an external agent can cancel WebMCP operations before mutatio
       'in_progress',
     );
   }
+  await page.clock.resume();
   await expect(page.locator('.pw-action.pw-is-cancelled')).toHaveCount(2);
   await page.getByRole('button', { name: 'New task', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Create a task' })).toBeVisible();

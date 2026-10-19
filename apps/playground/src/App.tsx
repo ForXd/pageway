@@ -530,7 +530,7 @@ function Workspace({
               Your workspace
               <small>{browserDemo ? 'Changes stay in this tab' : 'Local development'}</small>
             </span>
-            <span className="version">v0.1</span>
+            <span className="version">v0.2</span>
           </div>
         </div>
       </aside>
@@ -1104,7 +1104,7 @@ function Workspace({
           </span>
           <span>Typed tools. Visible actions. Your interface.</span>
           <span>
-            v0.2.0 <span className="little-dot" /> Developer preview
+            v0.2.1 <span className="little-dot" /> Developer preview
           </span>
         </footer>
       </main>

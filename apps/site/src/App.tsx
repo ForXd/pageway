@@ -263,7 +263,7 @@ export function App() {
               target="_blank"
               rel="noreferrer"
             >
-              v0.2.0
+              v0.2.1
             </a>
           </nav>
           <a className="github-link" href={repository} target="_blank" rel="noreferrer">
@@ -443,7 +443,7 @@ export function App() {
               </a>
             </div>
             <span className="sidebar-note">
-              开发者预览 · v0.2.0
+              开发者预览 · v0.2.1
               <br />
               React 18 / 19 · ES modules
             </span>
@@ -465,7 +465,7 @@ export function App() {
                 label="安装命令"
                 file="terminal"
                 code={
-                  '# React 应用\npnpm add @zllling/pageway-react@0.2.0\n\n# 可选：模型凭证代理\npnpm add @zllling/pageway-agent@0.2.0'
+                  '# React 应用\npnpm add @zllling/pageway-react@0.2.1\n\n# 可选：模型凭证代理\npnpm add @zllling/pageway-agent@0.2.1'
                 }
               />
               <div className="package-list">

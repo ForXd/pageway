@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — 2026-10-19
+
+- Make the WebMCP cancellation contract deterministic on Linux WebKit by holding the executor before mutation while testing the real stop control. Real-time motion remains covered separately.
+- Publish the 0.2 feature set after the 0.2.0 candidate was correctly blocked by its browser test gate; no 0.2.0 npm packages were published.
+
 ## 0.2.0 — 2026-10-19
 
 - Accept an OpenAI-compatible `apiOrigin`, model and optional completion path directly in the React provider. The browser owns planning, tool execution and result continuation; existing AG-UI endpoints remain supported.
