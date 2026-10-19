@@ -5,6 +5,26 @@ React tools, page context, conversation UI, and visible agent actions for Pagewa
 Import `@zllling/pageway-react/styles.css` and render `PagewayOverlay` inside `PagewayProvider`
 to show the agent cursor, action path, and task controls.
 
+## React compatibility
+
+Since version 0.1.3, the SDK supports React and React DOM `^18.0.0 || ^19.0.0`.
+Keep `react` and `react-dom` on the same version. TypeScript applications should
+use the matching major versions of `@types/react` and `@types/react-dom`.
+The repository demos use React 19; the same Pageway APIs work in React 18.
+
+Mount client applications with `createRoot` from `react-dom/client`:
+
+```tsx
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+createRoot(document.getElementById('root')!).render(<App />);
+```
+
+Release checks install the packed SDK tarballs with React 18.0.0, 18.2.0, 18.3.1,
+and 19.3.1, then verify strict peer resolution, TypeScript declarations, SSR, and
+client tool execution, state updates, cancellation, and StrictMode cleanup.
+
 ## Interaction locking
 
 `PagewayOverlay` locks the host page from the beginning of a run, including model

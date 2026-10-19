@@ -259,7 +259,7 @@ export function App() {
               target="_blank"
               rel="noreferrer"
             >
-              v0.1.2
+              v0.1.3
             </a>
           </nav>
           <a className="github-link" href={repository} target="_blank" rel="noreferrer">
@@ -432,9 +432,9 @@ export function App() {
               </a>
             </div>
             <span className="sidebar-note">
-              开发者预览 · v0.1.2
+              开发者预览 · v0.1.3
               <br />
-              React 19 · ES modules
+              React 18 / 19 · ES modules
             </span>
           </aside>
 
@@ -447,14 +447,14 @@ export function App() {
               />
               <div className="requirements">
                 <span>Node.js 22.14+</span>
-                <span>React 19</span>
+                <span>React 18 / 19</span>
                 <span>支持流式工具调用的模型 API</span>
               </div>
               <CodeBlock
                 label="安装命令"
                 file="terminal"
                 code={
-                  '# React 应用\npnpm add @zllling/pageway-react@0.1.2\n\n# Agent 服务\npnpm add @zllling/pageway-agent@0.1.2'
+                  '# React 应用\npnpm add @zllling/pageway-react@0.1.3\n\n# Agent 服务\npnpm add @zllling/pageway-agent@0.1.3'
                 }
               />
               <div className="package-list">
@@ -496,7 +496,9 @@ export function App() {
                 </a>
               </div>
               <p className="note-text">
-                协议包由 React 和 Agent SDK 自动引入；只有自定义协议适配时，才需要直接安装。
+                协议包由 React 和 Agent SDK 自动引入；只有自定义协议适配时，才需要直接安装。 React
+                SDK 支持 React 18 和 19，请保持 <code>react</code> 与 <code>react-dom</code>{' '}
+                版本一致，类型包使用对应主版本。
               </p>
             </section>
 
@@ -518,6 +520,10 @@ export function App() {
                 </span>
               </div>
               <CodeBlock label="React 接入示例" file="src/App.tsx" code={reactExample} />
+              <p>
+                React 18 和 19 使用相同的接入方式。客户端入口使用 <code>react-dom/client</code> 的{' '}
+                <code>createRoot</code> 挂载应用；本演示使用 React 19。
+              </p>
               <div className="callout">
                 <Code2 size={19} />
                 <div>

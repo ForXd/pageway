@@ -3,16 +3,16 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import type { PageContext } from '@zllling/pageway-protocol';
 import { PagewayEngine } from './engine.js';
+import { useClientLayoutEffect } from './client-effect.js';
 import type { PageTool, PagewaySnapshot, PagewayToolInfo } from './types.js';
 
 interface Registry {
@@ -46,7 +46,7 @@ export function PagewayProvider({
   animationDuration,
   fetch: fetcher,
   children,
-}: PagewayProviderProps) {
+}: PagewayProviderProps): ReactElement {
   const toolRegistry = useRef(new Map<string, () => PageTool>());
   const contextRegistry = useRef(new Map<string, () => PageContext>());
   const [tools, setTools] = useState<PagewayToolInfo[]>([]);
@@ -66,7 +66,7 @@ export function PagewayProvider({
         getContexts,
       }),
   );
-  useLayoutEffect(() => {
+  useClientLayoutEffect(() => {
     engine.updateOptions({
       endpoint,
       headers,
@@ -153,7 +153,7 @@ export function usePageTool<T extends Record<string, unknown>>(definition: PageT
   const current = useRef(definition);
   current.current = definition;
   const schemaKey = JSON.stringify(definition.parameters);
-  useLayoutEffect(
+  useClientLayoutEffect(
     () =>
       registry.registerTool(
         definition.name,
@@ -176,7 +176,7 @@ export function usePageTool<T extends Record<string, unknown>>(definition: PageT
     [registry, definition.name],
   );
   // biome-ignore lint/correctness/useExhaustiveDependencies: Tool metadata lives in a ref; these values explicitly trigger public registry refreshes.
-  useLayoutEffect(() => {
+  useClientLayoutEffect(() => {
     registry.refreshTools();
   }, [registry, definition.name, definition.description, schemaKey]);
 }
@@ -186,7 +186,7 @@ export function usePageContext(context: PageContext): void {
   const registry = useRegistry();
   const current = useRef(context);
   current.current = context;
-  useLayoutEffect(
+  useClientLayoutEffect(
     () => registry.registerContext(context.id, () => current.current),
     [registry, context.id],
   );

@@ -32,7 +32,7 @@ pnpm test:site      # 对生产构建执行站点与演示 E2E（先 build:site�
 
 ## 快速启动
 
-需要 Node.js **22.14+** 和 pnpm **12.14.0**。依赖版本于 2026-10-17 从 registry 核验：Vite **8.3.4**、TypeScript **7.0.2**、React **19.3.1**、AG-UI **1.0.3**。锁文件固定安装解析。
+需要 Node.js **22.14+** 和 pnpm **12.14.0**。依赖版本于 2026-10-17 从 registry 核验：Vite **8.3.4**、TypeScript **7.0.2**、React **19.3.1**、AG-UI **1.0.3**。锁文件固定安装解析。仓库演示应用使用 React 19；React SDK 同时支持 **React 18 和 19**。
 
 ```sh
 corepack enable pnpm
@@ -74,6 +74,8 @@ PLAYGROUND_PORT=5174 ALLOWED_ORIGINS=http://localhost:5174,http://127.0.0.1:5174
 ## 在已有 React 应用中接入
 
 三个 SDK 已发布到 npm：[@zllling/pageway-react](https://www.npmjs.com/package/@zllling/pageway-react)、[@zllling/pageway-agent](https://www.npmjs.com/package/@zllling/pageway-agent)、[@zllling/pageway-protocol](https://www.npmjs.com/package/@zllling/pageway-protocol)。
+
+从 **0.1.3** 起，React SDK 支持 `react` / `react-dom` **`^18.0.0 || ^19.0.0`**。两者应使用相同版本，TypeScript 项目使用对应主版本的 `@types/react` 和 `@types/react-dom`。React 18 应用使用 `react-dom/client` 的 `createRoot` 挂载，下面的接入方式在 React 18 和 19 中一致。
 
 ```sh
 # 在 React 应用中安装
@@ -211,7 +213,7 @@ sequenceDiagram
 pnpm check             # lint、格式、类型、单测覆盖率、生产构建
 pnpm exec playwright install --with-deps --no-shell chromium firefox webkit
 pnpm test:e2e          # 完整浏览器链路，使用本地模型 HTTP fixture
-pnpm check:pack        # 独立消费者安装、SSR、HTTP、CSS、TypeScript
+pnpm check:pack        # React 18/19 独立消费者安装、SSR、客户端生命周期、类型
 pnpm test:site        # 生产文档站与浏览器内演示 E2E（先 build:site）
 pnpm check:all         # 上述完整门禁，包含站点 E2E
 pnpm release:dry-run   # 发布预检与 npm dry-run，不上传
@@ -222,11 +224,11 @@ pnpm check:model       # 可选：真实外部模型 API，不在普通 CI 消�
 
 测试覆盖 SSE 字节边界与 UTF-8、AG-UI schema/lifecycle、真实本地 HTTP 模型 fixture、连续工具回传、错误脱敏、超时/取消、未知工具与参数拒绝、重复调用、中断恢复、最新回调和页面状态读取。Playwright 覆盖 Chromium、Firefox、WebKit 和移动 Chromium，实际执行页面工具并核对模型收到的结果与最新页面状态；逐帧检查动画、交互锁和 reduced motion。
 
-GitHub Actions 在 Node 24/26 执行质量门禁，并上传覆盖率、浏览器报告及已验证 tarball。`v*` 标签触发同样的完整检查，再通过 npm OIDC 按依赖顺序发布三个包；首次认证与 trusted publisher 配置见 [发布说明](docs/releasing.md)。
+GitHub Actions 在 Node 24/26 执行质量门禁，并上传覆盖率、浏览器报告及已验证 tarball。独立消费者验证覆盖 React 18.0.0、18.2.0、18.3.1 和 19.3.1，检查打包后的 SDK 在各版本中的安装、类型、SSR 与客户端生命周期。`v*` 标签触发同样的完整检查，再通过 npm OIDC 按依赖顺序发布三个包；首次认证与 trusted publisher 配置见 [发布说明](docs/releasing.md)。
 
 这是开发者预览，不包含会话数据库、多用户身份系统、持久审计、限流、审批策略或工具业务权限。应用需沿用自己的登录与业务授权；示例服务默认监听 loopback 并限制 CORS。公开部署时在 handler 外接入认证、配额与业务权限。CORS 不是授权。上下文和工具结果属于客户端输入，不能作为后端权限依据。
 
-构建产物在各包 `dist/`，CSS 通过 `@zllling/pageway-react/styles.css` 引入。包使用 ES modules；React 19 是当前 peer dependency。
+构建产物在各包 `dist/`，CSS 通过 `@zllling/pageway-react/styles.css` 引入。包使用 ES modules；React 和 React DOM 由应用提供，支持 18 和 19。
 
 ## 参与贡献
 

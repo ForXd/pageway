@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 — 2026-10-19
+
+- Support React 18 and 19, starting with React 18.0.0, without requiring consumers to upgrade React.
+- Keep exported component declarations compatible with the original React 18 type packages as well as current React 18/19 types.
+- Avoid server-side layout Effect warnings on React 18 while preserving synchronous browser registration and page locking.
+- Gate publication on isolated React 18.0, 18.2, 18.3, and 19 consumers: strict peer installation and types, SSR, StrictMode tool results and fresh page state, cancellation, and lock cleanup.
 
 - Add the public documentation and interactive demo site at https://forxd.github.io/pageway/, with typechecked React and Agent integration examples.
 - Run the actual Agent handler in the browser for a keyless rules demo, including SSE, tool results, visible motion, page locking, and cancellation.

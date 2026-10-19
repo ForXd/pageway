@@ -1,5 +1,16 @@
 # 验证记录
 
+## React 18 / 19 兼容验证（2026-10-19）
+
+`0.1.3` 将 React / React DOM peer 范围扩展为 `^18.0.0 || ^19.0.0`，使用各自独立安装的真实 tarball 验证 React 18.0.0、18.2.0、18.3.1 和 19.3.1。
+
+- 每组执行严格 peer 安装、SSR、CSS / dist 导出、Agent HTTP 和 `skipLibCheck: false` 的类型检查。最低版本还使用原始 18.0.0 类型包与 ESNext/Bundler 配置；其他组使用 NodeNext。
+- 客户端在 jsdom 的真实 React 调度下运行 StrictMode。连续两个异步工具得到 6、12 的结果，下一轮请求包含最新页面状态 12；停止与卸载均取消任务、释放输入锁，且迟到的工具结果不会续传。
+- 修复旧 React 18 类型包缺少 `React.JSX` 时的组件声明不兼容；SSR 不再产生布局 Effect 警告。SSR 与客户端 fixture 均拒绝意外的 React 错误输出。
+- 151 项 Vitest 测试通过，覆盖率为语句 93.14%、分支 83.19%、函数 93.90%、行 94.16%；20 项应用 E2E 与 10 项站点 E2E 通过。实际动画和浏览器原生交互锁由 React 19 的 Playwright 套件验证。
+
+React 18/19 消费者矩阵纳入 Node 24/26 的共享 CI 与 npm 发布门禁，发布使用同一份经过检查的 tarball。
+
 日期：2026-10-17（Asia/Shanghai）。本记录区分真实模型、协议 mock、浏览器交互和构建结果。
 
 ## 工程补全验证

@@ -1,9 +1,10 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties, FormEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { CSSProperties, FormEvent, ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import { usePageway } from './provider.js';
 import type { ActionStep } from './types.js';
 import { acquirePageLock } from './page-lock.js';
+import { useClientLayoutEffect } from './client-effect.js';
 
 function ArrowIcon() {
   return (
@@ -60,7 +61,7 @@ export function PagewayChat({
   title = 'Pageway assistant',
   suggestions = [],
   className = '',
-}: PagewayChatProps) {
+}: PagewayChatProps): ReactElement {
   const { messages, sendMessage, stop, reset, status, error, tools, actions } = usePageway();
   const [input, setInput] = useState('');
   const conversation = useRef<HTMLDivElement>(null);
@@ -258,7 +259,7 @@ export function PagewayChat({
   );
 }
 
-export function ActionTimeline({ className = '' }: { className?: string }) {
+export function ActionTimeline({ className = '' }: { className?: string }): ReactElement {
   const { actions, status } = usePageway();
   const completed = actions.filter((action) => action.status === 'success').length;
   return (
@@ -344,7 +345,7 @@ export function PagewayOverlay({ lockPage = true }: PagewayOverlayProps = {}) {
   const stopControl = useRef<HTMLButtonElement>(null);
   const descriptionId = useId();
   const busy = status === 'running';
-  useLayoutEffect(() => {
+  useClientLayoutEffect(() => {
     if (!busy || !lockPage || !dialog.current || !stopControl.current) return;
     return acquirePageLock(dialog.current, stopControl.current, stop);
   }, [busy, lockPage, stop]);
