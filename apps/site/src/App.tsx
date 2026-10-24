@@ -264,7 +264,7 @@ export function App() {
               target="_blank"
               rel="noreferrer"
             >
-              v0.2.1
+              v0.3.0
             </a>
           </nav>
           <a className="github-link" href={repository} target="_blank" rel="noreferrer">
@@ -444,7 +444,7 @@ export function App() {
               </a>
             </div>
             <span className="sidebar-note">
-              开发者预览 · v0.2.1
+              开发者预览 · v0.3.0
               <br />
               React 18 / 19 · ES modules
             </span>
@@ -466,7 +466,7 @@ export function App() {
                 label="安装命令"
                 file="terminal"
                 code={
-                  '# React 应用\npnpm add @zllling/pageway-react@0.2.1\n\n# 可选：模型凭证代理\npnpm add @zllling/pageway-agent@0.2.1'
+                  '# React 应用\npnpm add @zllling/pageway-react@0.3.0\n\n# 可选：模型凭证代理\npnpm add @zllling/pageway-agent@0.3.0'
                 }
               />
               <div className="package-list">
@@ -565,6 +565,25 @@ export function App() {
                 <code>timeoutMs</code> 控制 apiOrigin 模式每轮模型等待时间，默认 180000 毫秒，允许
                 1–300000 毫秒；代理服务也需配置足够的超时。AG-UI endpoint
                 模式的模型超时由其服务端决定。
+              </p>
+              <h3>每个工具都能设置权限与审批</h3>
+              <p>
+                在 <code>usePageTool</code> 中使用 <code>enabled</code> 控制当前是否可用，
+                <code>allowedSources</code> 限定 <code>chat</code> 或 <code>webmcp</code> 来源。
+                默认两者均可调用；禁用后不再暴露，旧调用也会被拒绝。
+              </p>
+              <p>
+                高风险操作设置 <code>approval: {'{ title, description }'}</code>，或同步函数
+                <code>{'(args) => ({ title, description } | false)'}</code>。
+                用应用当前数据描述对象和后果，浮层会在执行业务回调前交给用户批准或拒绝。
+                本站演示的删除操作始终要求审批，也可开启 Review every edit 审批每次编辑。
+              </p>
+              <p>
+                自定义审批界面可读取 <code>pendingApproval</code>，由用户点击调用
+                <code>approveAction(id)</code> 或 <code>rejectAction(id)</code>。
+                拒绝只跳过当前操作，Stop 或 Esc
+                取消整个任务。审批只对当前调用有效，刷新不会恢复审批。 不要将批准方法开放为 Agent
+                工具；后端仍需负责业务权限与不可逆操作检查。
               </p>
             </section>
 
@@ -908,7 +927,7 @@ export function App() {
                 <div>
                   <h3>你的会话与业务权限</h3>
                   <p>
-                    提供可选本机缓存，不包含服务端会话数据库、多用户身份系统、持久审计或人审策略。客户端上下文和工具结果不是后端授权依据。
+                    提供可选本机缓存和逐次操作审批，不包含服务端会话数据库、多用户身份系统、持久审计或服务端审批工作流。客户端上下文和工具结果不是后端授权依据。
                   </p>
                 </div>
                 <div>

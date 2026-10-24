@@ -52,6 +52,16 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'delete_task',
+    description: 'Delete one task after user approval',
+    parameters: {
+      type: 'object',
+      properties: { id: { type: 'string', pattern: '^PW-[0-9]+$' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'inspect_page',
     description: 'Read page',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
@@ -802,6 +812,9 @@ describe('deterministic demo public behavior', () => {
     ['Set API integration in progress', 'update_task', { id: 'PW-103', status: 'in_progress' }],
     ['Set PW-103 todo', 'update_task', { id: 'PW-103', status: 'todo' }],
     ['Change PW-103 priority to medium', 'update_task', { id: 'PW-103', priority: 'medium' }],
+    ['Delete PW-103', 'delete_task', { id: 'PW-103' }],
+    ['删除 PW-103', 'delete_task', { id: 'PW-103' }],
+    ['Remove pw-103, the high priority task', 'delete_task', { id: 'PW-103' }],
   ])('plans %s with grounded arguments', async (prompt, name, args) => {
     const output = await events(await createAgentHandler()(request(input(prompt))));
     expect(output.filter((e) => e.type === EventType.TOOL_CALL_START)).toMatchObject([
@@ -821,6 +834,11 @@ describe('deterministic demo public behavior', () => {
     'Hello there',
     '你好',
     'Clear filters',
+    'Delete all tasks',
+    'Delete API integration',
+    'Delete PW-103 and PW-104',
+    'Delete PW-999',
+    '删除所有任务',
   ])('answers %s without executing an ambiguous or unavailable action', async (prompt) => {
     const output = await events(await createAgentHandler()(request(input(prompt))));
     expect(output.filter((e) => e.type === EventType.TOOL_CALL_START)).toHaveLength(0);

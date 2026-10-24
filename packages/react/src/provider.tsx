@@ -27,6 +27,8 @@ export interface PagewayValue extends PagewaySnapshot {
   sendMessage: (text: string) => Promise<void>;
   stop: () => void;
   reset: () => void;
+  approveAction: (id: string) => boolean;
+  rejectAction: (id: string) => boolean;
   tools: PagewayToolInfo[];
   webmcp: WebMCPState;
 }
@@ -153,10 +155,12 @@ export function PagewayProvider({
   useEffect(() => bridge.current?.sync(), [tools]);
 
   const refreshTools = useCallback(() => {
-    const next = getTools().map(({ name, description, parameters }) => ({
+    const next = getTools().map(({ name, description, parameters, enabled, allowedSources }) => ({
       name,
       description,
       parameters,
+      enabled,
+      allowedSources,
     }));
     setTools((previous) => (JSON.stringify(previous) === JSON.stringify(next) ? previous : next));
   }, [getTools]);
@@ -199,6 +203,8 @@ export function PagewayProvider({
       sendMessage: engine.sendMessage,
       stop: engine.stop,
       reset: engine.reset,
+      approveAction: engine.approveAction,
+      rejectAction: engine.rejectAction,
     }),
     [snapshot, tools, engine, webmcpState],
   );
@@ -227,32 +233,37 @@ export function usePageTool<T extends Record<string, unknown>>(definition: PageT
   const current = useRef(definition);
   current.current = definition;
   const schemaKey = JSON.stringify(definition.parameters);
-  useClientLayoutEffect(
-    () =>
-      registry.registerTool(
-        definition.name,
-        () =>
-          ({
-            ...current.current,
-            execute: async (args: Record<string, unknown>, context: { signal: AbortSignal }) => {
-              // Commit synchronous updates before another tool reads the application.
-              let result: unknown;
-              flushSync(() => {
-                result = current.current.execute(args as T, context);
-              });
-              const value = await result;
-              // Async handlers can schedule another update immediately before resolving.
-              flushSync(() => {});
-              return value;
-            },
-          }) as unknown as PageTool,
-      ),
-    [registry, definition.name],
-  );
+  const sourcesKey = JSON.stringify(definition.allowedSources);
+  useClientLayoutEffect(() => {
+    // Keep this identity for the lifetime of one registration so a pending
+    // approval cannot be transferred to a replacement tool with the same name.
+    const execute = async (args: Record<string, unknown>, context: { signal: AbortSignal }) => {
+      // Commit synchronous updates before another tool reads the application.
+      let result: unknown;
+      flushSync(() => {
+        result = current.current.execute(args as T, context);
+      });
+      const value = await result;
+      // Async handlers can schedule another update immediately before resolving.
+      flushSync(() => {});
+      return value;
+    };
+    return registry.registerTool(
+      definition.name,
+      () => ({ ...current.current, execute }) as unknown as PageTool,
+    );
+  }, [registry, definition.name]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: Tool metadata lives in a ref; these values explicitly trigger public registry refreshes.
   useClientLayoutEffect(() => {
     registry.refreshTools();
-  }, [registry, definition.name, definition.description, schemaKey]);
+  }, [
+    registry,
+    definition.name,
+    definition.description,
+    definition.enabled,
+    schemaKey,
+    sourcesKey,
+  ]);
 }
 
 /** Publish only the application state that the agent needs to understand this page. */

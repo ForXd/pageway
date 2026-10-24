@@ -81,10 +81,73 @@ configuration to its server. With neither endpoint nor apiOrigin, the provider c
 expose tools through WebMCP without a chat backend. Omit `PagewayChat` in that mode.
 
 `usePageway()` exposes `messages`, `sendMessage`, `stop`, `reset`, `status`, `error`,
-`actions`, `events`, `tools`, and `webmcp`. A registered tool's latest callback and
+`actions`, `events`, `tools`, `webmcp`, `pendingApproval`, `approveAction(id)`, and
+`rejectAction(id)`. A registered tool's latest callback and
 context are read at execution time. Unknown tools and invalid arguments are
 rejected before their callback runs. Backend business authorization remains the
 responsibility of the application.
+
+## Tool permissions and user approval
+
+Configure each registered tool independently. `enabled` defaults to `true`;
+`enabled: false` removes it from discovery and blocks execution. `allowedSources`
+defaults to `['chat', 'webmcp']`; use `['chat']` for an in-app chat-only operation,
+`['webmcp']` for an external-agent-only operation, or `[]` to deny both. These
+policies apply to discovery and the shared executor, including stale calls.
+They do not restrict the separately registered page context or replace server authorization.
+
+`approval` is application-owned review text or a synchronous function receiving
+validated arguments and returning that text. Return `false` from the function for
+calls that need no review. Omit `approval` for immediate execution. For example,
+inside a component with the current `tasks` and its existing `deleteTask` service:
+
+```tsx
+usePageTool<{ id: string }>({
+  name: 'delete_task',
+  description: 'Delete one task after user approval',
+  enabled: canDeleteTasks,
+  allowedSources: ['chat'],
+  parameters: {
+    type: 'object',
+    properties: { id: { type: 'string' } },
+    required: ['id'],
+    additionalProperties: false,
+  },
+  approval: ({ id }) => {
+    const task = tasks.find((item) => item.id === id);
+    if (!task) throw new Error('Task no longer exists.');
+    return {
+      title: `Delete ${id}?`,
+      description: `Permanently delete “${task.title}”. This cannot be undone.`,
+    };
+  },
+  execute: ({ id }, { signal }) => deleteTask(id, { signal }),
+});
+```
+
+`PagewayOverlay` displays the title, consequence, tool name, source, and exact
+arguments with **Reject action** and **Approve this action** buttons. Execution
+pauses before animation and before the business callback; the run remains
+`status: 'running'` with activity phase `awaiting-approval`. Approval applies to
+this call only. Rejection records a `rejected` action and an `{ ok: false, error }`
+tool result; the chat loop may continue with subsequent calls and model replies.
+Use **Stop task** or Escape to cancel the entire task.
+
+Custom review interfaces can read `pendingApproval` (`null` or
+`{ id, name, args, source, title, description }`) and call `approveAction(id)` or
+`rejectAction(id)` from a user interaction. Both return `false` for an expired or
+already-decided ID. The ID is a local approval token, distinct from the model's
+tool-call ID, so delayed responses cannot authorize a new session's call. Keep review UI accessible if providing your own page lock;
+never approve in a render/effect or expose the decision methods as agent tools.
+Without a mounted review UI, an approval-required tool waits until decided or cancelled.
+
+Permissions, arguments, and review details are checked again immediately before
+the callback. Changed review details or replacement registrations invalidate an
+old approval. Stop, reset, session switch, and provider unmount clear the pending
+request; cached history never restores a live approval. Action history retains
+the decision and timestamps, but is not a tamper-proof audit log. Browser review
+is a consent step, not protection from malicious same-origin scripts. Keep
+authorization and irreversible-operation checks in your backend.
 
 ## Optional local conversation cache
 
@@ -133,7 +196,7 @@ collisions surface an error without replacing another registration.
 `usePageway().webmcp` has `status`, `registered` (tool names), and `error`.
 Statuses are `disabled`, `unsupported`, `registering`, `ready`, and `error`.
 The bridge is enabled by default; pass `webmcp={false}` to opt out. External
-calls share the chat executor's schema validation, action trail, animations,
+calls share the chat executor's schema validation, tool permissions, approval, action trail, animations,
 interaction lock, and stop control. Calls while another task is active are
 rejected; execution cancellation propagates to the registered callback.
 
@@ -206,7 +269,7 @@ Escape remain responsive during every phase, including the completion cue.
 Cancellation after a callback has completed preserves its successful result.
 
 For browser integration tests, the overlay exposes `data-pageway-phase` with
-`planning`, `moving`, `acting`, `success`, or `error`, plus
-`[data-pageway-stop]`. A locked run uses
+`planning`, `awaiting-approval`, `moving`, `acting`, `success`, or `error`, plus
+`[data-pageway-stop]`, `[data-pageway-approve]`, and `[data-pageway-reject]`. A locked run uses
 `dialog[data-pageway-lock="true"][open]`. Reduced motion omits `moving`; tests
 should assert the applied result and static feedback instead of requiring travel.

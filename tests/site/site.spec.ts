@@ -157,6 +157,99 @@ test('the static demo locks interaction during the task and cancellation restore
   await expectNoOverflow(page);
 });
 
+test('the local demo previews an exact deletion and applies it only after keyboard approval', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await send(page, '删除 PW-105');
+  const review = page.locator(`${lockSelector}[data-pageway-phase="awaiting-approval"]`);
+  await expect(review).toBeVisible();
+  await expect(review).toContainText('Delete PW-105?');
+  await expect(review).toContainText('Review accessibility');
+  await expect(review).toContainText('disappear from the board and list');
+  await expect(review).toContainText('"id": "PW-105"');
+  await expect(page.locator('#task-PW-105')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Reject action', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(
+    page.getByRole('button', { name: 'Approve this action', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.locator('#task-PW-105')).toHaveCount(0);
+  await expect(page.locator('.pw-message-assistant').last()).toContainText('页面已确认 1 项操作');
+  await expect(page.locator('.pw-action.pw-is-success')).toHaveCount(1);
+  await send(page, '总结当前页面');
+  await expect(page.locator('.pw-message-assistant').last()).toContainText('共有 7 个任务');
+  await expectNoOverflow(page);
+});
+
+test('rejecting or stopping a deletion leaves the task intact and a refresh does not resume review', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await send(page, 'Delete PW-105');
+  await page.getByRole('button', { name: 'Reject action', exact: true }).click();
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.locator('#task-PW-105')).toHaveCount(1);
+  await expect(page.locator('.pw-action.pw-is-rejected')).toHaveCount(1);
+  await expect(page.locator('.pw-message-assistant').last()).toContainText('no automatic retry');
+
+  await send(page, 'Delete PW-105');
+  await expect(
+    page.locator(`${lockSelector}[data-pageway-phase="awaiting-approval"]`),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.locator('#task-PW-105')).toHaveCount(1);
+  await expect(page.locator('.pw-action.pw-is-cancelled')).toHaveCount(1);
+
+  await send(page, 'Delete PW-105');
+  await expect(
+    page.locator(`${lockSelector}[data-pageway-phase="awaiting-approval"]`),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#task-PW-105')).toHaveCount(1);
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.locator('[data-pageway-approve]')).toHaveCount(0);
+  await expectNoOverflow(page);
+});
+
+test('agent edit permissions block mutations while filters remain available and optional review gates updates', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await page.getByRole('checkbox', { name: 'Allow agent edits', exact: true }).uncheck();
+  await send(page, 'Mark PW-103 as done');
+  await expect(page.locator('.pw-message-assistant').last()).toContainText(
+    'not made the required tools available',
+  );
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'PW-103 status', exact: true })).toHaveValue(
+    'in_progress',
+  );
+  await expect(page.locator('.pw-action')).toHaveCount(0);
+  await send(page, 'Show high priority tasks');
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Priority filter', exact: true })).toHaveValue(
+    'high',
+  );
+
+  await page.getByRole('checkbox', { name: 'Allow agent edits', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Review every edit', exact: true }).check();
+  await send(page, 'Mark PW-103 as done');
+  const review = page.locator(`${lockSelector}[data-pageway-phase="awaiting-approval"]`);
+  await expect(review).toContainText('Update PW-103?');
+  await expect(review).toContainText('Connect the agent API');
+  await expect(page.locator('select[aria-label="PW-103 status"]')).toHaveValue('in_progress');
+  await page.getByRole('button', { name: 'Approve this action', exact: true }).click();
+  await expect(page.locator(lockSelector)).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'PW-103 status', exact: true })).toHaveValue(
+    'done',
+  );
+  await expectNoOverflow(page);
+});
+
 test('the public WebMCP-only workspace loads without a model endpoint and keeps unsupported browsers usable', async ({
   page,
   baseURL,

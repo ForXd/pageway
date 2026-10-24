@@ -136,8 +136,10 @@ export function runDemo(
   const create = /\b(create|add|new)\b.{0,30}\btask\b|(?:创建|新建|新增|添加).{0,6}任务/.test(
     lower,
   );
+  const deleting = !create && /\b(delete|remove)\b|删除|移除/.test(lower);
   const update =
     !create &&
+    !deleting &&
     /\b(complete|finish|mark|move|update|set|change)\b|完成|标记|更新|设为|改为|移到|移至/.test(
       lower,
     ) &&
@@ -175,6 +177,7 @@ export function runDemo(
     add('reset_filters', {}, chinese ? '重置筛选' : 'reset the filters');
   } else if (
     !create &&
+    !deleting &&
     (/\b(show|filter|find|search|display)\b|筛选|只看|显示|查找|搜索/.test(lower) ||
       (!updating && priority !== 'all'))
   ) {
@@ -222,6 +225,23 @@ export function runDemo(
       'create_task',
       { title, ...(priority !== 'all' ? { priority } : {}) },
       chinese ? `创建任务「${title}」` : `create “${title}”`,
+    );
+  } else if (deleting) {
+    const ids = [...new Set(prompt.match(/\bPW-\d+\b/gi)?.map((id) => id.toUpperCase()) ?? [])];
+    const target = ids.length === 1 ? tasks.find((task) => task.id === ids[0]) : undefined;
+    if (!target) {
+      textMessage(
+        chinese
+          ? '演示规划器：删除操作需要当前页面上一个明确的任务编号，例如“删除 PW-105”。请一次选择一个任务，我不会猜测或批量删除。'
+          : 'Demo planner: deletion needs exactly one task ID from this page, for example “Delete PW-105”. Choose one task; I will not guess or delete a batch.',
+        emit,
+      );
+      return;
+    }
+    add(
+      'delete_task',
+      { id: target.id },
+      chinese ? `请求你审批删除任务 ${target.id}` : `ask you to approve deleting ${target.id}`,
     );
   } else if (updating) {
     const target =
@@ -300,8 +320,8 @@ export function runDemo(
   if (actions.some((action) => !validators.has(action.name))) {
     textMessage(
       chinese
-        ? '演示规划器：当前页面没有注册完成该请求所需的工具。请接入模型 API，或注册演示工作区工具。'
-        : 'Demo planner: this page has not registered the tools required for that request. Register the workspace demo tools or connect a model API.',
+        ? '演示规划器：当前页面未开放完成该请求所需的工具。请检查 Agent permissions 或注册相应的演示工作区工具。'
+        : 'Demo planner: this page has not made the required tools available. Check Agent permissions or register the corresponding workspace demo tools.',
       emit,
     );
     return;

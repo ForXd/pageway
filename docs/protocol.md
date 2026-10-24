@@ -71,6 +71,16 @@ sequenceDiagram
 
 AG-UI handler 和浏览器执行器都会校验 JSON Schema；普通 OpenAI 代理只处理模型 HTTP 边界，实际参数校验由浏览器执行器负责。模型仅提出调用；未注册工具或非法参数不会执行。运行时 `target` 只用于滚动、高亮与连线，不决定业务操作。目标 DOM 不存在时，注册工具仍可执行。
 
+## 工具权限与逐次审批
+
+`PageTool.enabled` 默认为 `true`；设为 `false` 后不向模型或 WebMCP 暴露该工具，执行器也拒绝旧调用。`allowedSources` 默认包含 `chat` 和 `webmcp`，可限定其中一种或用空数组禁用所有 Agent 来源。限制按每个工具生效，不会自动隐藏 `usePageContext` 发布的数据。
+
+`approval` 接受 `{ title, description }` 或同步 `(args) => ({ title, description } | false)`。参数先经 schema 校验，审批文案由应用根据当前状态生成，不能由模型提供审批决定。省略此项或函数返回 `false` 时正常执行。
+
+需要审批的调用进入 `awaiting-approval`，整个任务仍为 `status: 'running'`。`usePageway().pendingApproval` 提供 `{ id, name, args, source, title, description }`；浮层展示具体操作和参数，用户通过 `approveAction(id)` 或 `rejectAction(id)` 决定。两个方法对过期或已处理的 ID 返回 `false`。批准只适用于当前调用，动画和业务回调随后执行；调用前再次核验权限、参数和审批内容，内容或注册实例已变化时需重新发起审批。
+
+拒绝记录 `rejected` 操作和 `{ ok: false, error }` 回执，其他排队工具与后续模型轮次仍可继续。Stop 或 Esc 取消整个任务。停止、重置、切换会话和卸载会清除待审批请求；缓存可记录审批状态与时间，但不会恢复可执行的审批。此流程发生在前端，不新增 HTTP 端点，也不实现 AG-UI interrupt/resume。它提供用户确认，不替代后端业务权限或持久审计。
+
 ## 错误、取消与边界
 
 - 停止会中断 HTTP 流、动画和待执行工具，并向正在运行的工具传递 `AbortSignal`。应用的异步工具必须检查或转交这个 signal；已完成的业务操作不会自动回滚。
@@ -79,7 +89,7 @@ AG-UI handler 和浏览器执行器都会校验 JSON Schema；普通 OpenAI 代�
 - OpenAI 模式要求 provider 返回 SSE、标准结束原因与 `[DONE]`。网络错误、未知工具、非法参数、截断输出都会产生 `RUN_ERROR`，不会产生可执行的成功完成信号。
 - 对部分兼容推理模型，`reasoning_content` 通过 `metadata.pageway.reasoning_content` 原样带回后续请求，不作为聊天正文。该字段是明文续传数据，不是加密存储；调试事件中可能包含它。
 
-Pageway 当前未实现完整 AG-UI 功能面：不会应用 `STATE_DELTA`、`STATE_SNAPSHOT`、消息快照或快捷 chunk 事件，也不包含人审中断、子 agent 编排、二进制内容与断线重放。外部 agent 对接应发送上表中的完整生命周期事件；页面动作的显式注册与结果回传方式与 AG-UI 的前端工具模型一致。[AG-UI 工具概念](https://docs.ag-ui.com/concepts/tools)
+Pageway 当前未实现完整 AG-UI 功能面：不会应用 `STATE_DELTA`、`STATE_SNAPSHOT`、消息快照或快捷 chunk 事件，也不包含 AG-UI interrupt/resume、子 agent 编排、二进制内容与断线重放。外部 agent 对接应发送上表中的完整生命周期事件；页面动作的显式注册与结果回传方式与 AG-UI 的前端工具模型一致。[AG-UI 工具概念](https://docs.ag-ui.com/concepts/tools)
 
 ## 模型来源事件
 

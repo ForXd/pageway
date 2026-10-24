@@ -142,6 +142,7 @@ const toolNames = [
   'filter_tasks',
   'update_task',
   'create_task',
+  'delete_task',
   'inspect_page',
   'reset_filters',
   'navigate_view',
@@ -150,11 +151,12 @@ const descriptions: Record<string, string> = {
   filter_tasks: 'Filter tasks by priority, status, or a search query.',
   update_task: 'Update a task’s status or priority using its ID.',
   create_task: 'Create a new task in this workspace.',
+  delete_task: 'Delete one task by ID after the user approves the exact deletion.',
   inspect_page: 'Read the current workspace, tasks, and filters.',
   reset_filters: 'Clear all filters and reveal every task.',
   navigate_view: 'Switch between the board and list views.',
 };
-const suggestions = ['Show high priority tasks', 'Mark PW-103 as done', 'Switch to list view'];
+const suggestions = ['Show high priority tasks', 'Mark PW-103 as done', 'Delete PW-105'];
 const statusSchema = { type: 'string', enum: ['todo', 'in_progress', 'done'] };
 const prioritySchema = { type: 'string', enum: ['high', 'medium', 'low'] };
 const schema = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -224,6 +226,10 @@ function Workspace({
   const [view, setView] = useState<'board' | 'list'>('board');
   const [tab, setTab] = useState<'workspace' | 'tools' | 'events' | 'integration'>('workspace');
   const [showCreate, setShowCreate] = useState(false);
+  const [allowAgentEdits, setAllowAgentEdits] = useState(true);
+  const [allowExternalEdits, setAllowExternalEdits] = useState(true);
+  const [reviewEdits, setReviewEdits] = useState(false);
+  const editSources: ('chat' | 'webmcp')[] = allowExternalEdits ? ['chat', 'webmcp'] : ['chat'];
   const createDialog = useRef<HTMLDialogElement>(null);
   const eventIds = useRef(new WeakMap<object, string>());
   function eventKey(event: object) {
@@ -285,7 +291,18 @@ function Workspace({
     title: 'Website relaunch workspace',
     description:
       'A live task board. Task IDs are stable. Status values: todo, in_progress, done. Priority values: high, medium, low.',
-    data: { tasks, filters, view, visibleTaskIds: visibleTasks.map((t) => t.id) },
+    data: {
+      tasks,
+      filters,
+      view,
+      visibleTaskIds: visibleTasks.map((t) => t.id),
+      agentPermissions: {
+        allowAgentEdits,
+        allowExternalEdits,
+        reviewEdits,
+        deletionRequiresApproval: true,
+      },
+    },
   });
   usePageTool<{ status?: string; priority?: string; query?: string }>({
     name: 'filter_tasks',
@@ -314,6 +331,14 @@ function Workspace({
   usePageTool<{ id: string; status?: Status; priority?: Priority }>({
     name: 'update_task',
     description: descriptions.update_task,
+    enabled: allowAgentEdits,
+    allowedSources: editSources,
+    approval: reviewEdits
+      ? (args) => ({
+          title: `Update ${args.id}?`,
+          description: `Change “${tasks.find((task) => task.id === args.id)?.title ?? args.id}”${args.status ? ` to ${args.status.replace('_', ' ')}` : ''}${args.priority ? ` with ${args.priority} priority` : ''}.`,
+        })
+      : undefined,
     parameters: schema({ id: { type: 'string' }, status: statusSchema, priority: prioritySchema }, [
       'id',
     ]),
@@ -332,6 +357,14 @@ function Workspace({
   usePageTool<{ title: string; priority?: Priority }>({
     name: 'create_task',
     description: descriptions.create_task,
+    enabled: allowAgentEdits,
+    allowedSources: editSources,
+    approval: reviewEdits
+      ? (args) => ({
+          title: 'Create this task?',
+          description: `Add “${args.title}” to this workspace with ${args.priority ?? 'medium'} priority.`,
+        })
+      : undefined,
     parameters: schema(
       { title: { type: 'string', minLength: 1, maxLength: 120 }, priority: prioritySchema },
       ['title'],
@@ -341,6 +374,29 @@ function Workspace({
       const task = addTask(args.title, args.priority || 'medium');
       setTab('workspace');
       return { task };
+    },
+  });
+  usePageTool<{ id: string }>({
+    name: 'delete_task',
+    description: descriptions.delete_task,
+    enabled: allowAgentEdits,
+    allowedSources: editSources,
+    parameters: schema({ id: { type: 'string', pattern: '^PW-[0-9]+$' } }, ['id']),
+    target: (args) => document.getElementById(`task-${args.id}`),
+    approval: ({ id }) => {
+      const task = tasks.find((item) => item.id === id);
+      if (!task) throw new Error(`Task ${id} does not exist.`);
+      return {
+        title: `Delete ${id}?`,
+        description: `Remove “${task.title}” from this workspace. This task will disappear from the board and list. Reset demo or reload to restore the sample workspace.`,
+      };
+    },
+    execute: ({ id }) => {
+      const task = tasks.find((item) => item.id === id);
+      if (!task) throw new Error(`Task ${id} does not exist.`);
+      setTasks((current) => current.filter((item) => item.id !== id));
+      setTab('workspace');
+      return { deletedTask: { id: task.id, title: task.title }, remainingTasks: tasks.length - 1 };
     },
   });
   usePageTool<Record<string, never>>({
@@ -473,7 +529,7 @@ function Workspace({
             onClick={() => setTab('tools')}
           >
             <Workflow size={17} />
-            Tool registry<span className="nav-count">6</span>
+            Tool registry<span className="nav-count">{toolNames.length}</span>
           </button>
           <button
             type="button"
@@ -541,7 +597,7 @@ function Workspace({
                 {browserDemo || demoNotice ? 'Changes stay in this tab' : 'Local development'}
               </small>
             </span>
-            <span className="version">v0.2</span>
+            <span className="version">v0.3</span>
           </div>
         </div>
       </aside>
@@ -646,7 +702,8 @@ function Workspace({
             </span>
           </span>
           <span>
-            <Workflow size={15} />6 page tools
+            <Workflow size={15} />
+            {toolNames.length} page tools
           </span>
           <span>
             <Radio size={15} />
@@ -670,6 +727,41 @@ function Workspace({
         )}
         {tab === 'workspace' && (
           <>
+            <fieldset className="agent-permissions" disabled={busy}>
+              <legend>Agent permissions</legend>
+              <div className="permission-options">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allowAgentEdits}
+                    onChange={(event) => setAllowAgentEdits(event.target.checked)}
+                  />
+                  Allow agent edits
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allowExternalEdits}
+                    disabled={!allowAgentEdits}
+                    onChange={(event) => setAllowExternalEdits(event.target.checked)}
+                  />
+                  Allow external agent edits
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={reviewEdits}
+                    disabled={!allowAgentEdits}
+                    onChange={(event) => setReviewEdits(event.target.checked)}
+                  />
+                  Review every edit
+                </label>
+              </div>
+              <p>
+                Choose who can create, update, or delete tasks. Deletions always need your approval.
+                Viewing and filtering stay available.
+              </p>
+            </fieldset>
             <section className="project-section">
               <div className="project-title">
                 <div className="project-icon">
@@ -701,7 +793,7 @@ function Workspace({
                   <div className="progress-track">
                     <div
                       style={{
-                        width: `${(tasks.filter((t) => t.status === 'done').length / tasks.length) * 100}%`,
+                        width: `${tasks.length ? (tasks.filter((t) => t.status === 'done').length / tasks.length) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -921,7 +1013,7 @@ function Workspace({
                 </strong>
                 <p>
                   {webmcpOnly
-                    ? 'Use a WebMCP-capable browser agent to discover pageway_get_context and the six workspace tools.'
+                    ? 'Use a WebMCP-capable browser agent to discover pageway_get_context and the permitted workspace tools.'
                     : 'Ask the agent to “show high priority tasks” and watch the page respond.'}
                 </p>
               </div>
@@ -958,7 +1050,7 @@ function Workspace({
           <section className="tool-registry">
             <div className="registry-heading">
               <h2>Registered page tools</h2>
-              <span className="small-chip">6 available</span>
+              <span className="small-chip">{toolNames.length} registered</span>
             </div>
             {toolNames.map((name, index) => (
               <div className="tool-row" key={name}>
@@ -972,7 +1064,15 @@ function Workspace({
                 </div>
                 <span className="client-badge">
                   <span />
-                  Browser
+                  {['create_task', 'update_task', 'delete_task'].includes(name)
+                    ? !allowAgentEdits
+                      ? 'Disabled'
+                      : name === 'delete_task' || reviewEdits
+                        ? 'Approval required'
+                        : allowExternalEdits
+                          ? 'Chat + external'
+                          : 'Chat only'
+                    : 'Chat + external'}
                 </span>
               </div>
             ))}
@@ -1116,7 +1216,7 @@ function Workspace({
           </span>
           <span>Typed tools. Visible actions. Your interface.</span>
           <span>
-            v0.2.1 <span className="little-dot" /> Developer preview
+            v0.3.0 <span className="little-dot" /> Developer preview
           </span>
         </footer>
       </main>
@@ -1154,7 +1254,8 @@ function Workspace({
               Website relaunch
             </span>
             <span>
-              <span />6 tools connected
+              <span />
+              {toolNames.length} tools registered
             </span>
           </div>
           <PagewayChat

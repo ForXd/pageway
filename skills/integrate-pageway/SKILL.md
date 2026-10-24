@@ -1,13 +1,13 @@
 ---
 name: integrate-pageway
-description: Integrate Pageway into an existing React 18 or 19 application with typed page tools, chat, an OpenAI-compatible API proxy, optional conversation caching, and browser WebMCP access. Use when adding or migrating a Pageway integration, including pages that expose tools to an external agent without their own chat backend.
+description: Integrate Pageway into an existing React 18 or 19 application with typed page tools, chat, an OpenAI-compatible API proxy, optional conversation caching, per-tool permissions, user approval, and browser WebMCP access. Use when adding or migrating a Pageway integration, including pages that expose tools to an external agent without their own chat backend.
 ---
 
 # Integrate Pageway
 
 Connect the application's existing state and actions to Pageway. Keep its React version, state manager, authentication, routing, and server framework. React and React DOM must use compatible versions; Pageway supports React 18 and 19. For React Server Components, place the provider and hooks inside a client component and import the stylesheet at the framework's supported global CSS boundary.
 
-Read [integration examples](references/integration.md) for the provider, tools, proxy route, cache lifecycle, and WebMCP-only wiring. Check the installed Pageway package's exported types before editing: older releases may not expose `apiOrigin`, `storageKey`, or `webmcp`. Use a release containing these APIs, or workspace packages when contributing to Pageway itself.
+Read [integration examples](references/integration.md) for the provider, tools, proxy route, cache lifecycle, and WebMCP-only wiring. Check the installed Pageway package's exported types before editing: older releases may not expose `apiOrigin`, `storageKey`, `webmcp`, or per-tool `approval`/`allowedSources`. Use a release containing these APIs, or workspace packages when contributing to Pageway itself.
 
 ## Choose the transport
 
@@ -31,6 +31,14 @@ Keep provider API keys on the server. Do not put them in `VITE_*`, `NEXT_PUBLIC_
 - Give tools a stable `target` selector or a resolver returning an existing element so the user can follow the operation. Return the actual JSON-serializable outcome, including identifiers or values needed for the next action.
 - Honor the provided `AbortSignal`: pass it to asynchronous requests and check it before committing state after an await. Cancellation cannot undo an already committed server mutation; report its actual outcome instead of pretending it was rolled back.
 - Keep existing authorization and domain validation in application services. A tool schema checks shape, not whether the user owns an object. Existing global keyboard handlers registered on `window` capture should also honor `usePageway().status === 'running'` while the overlay owns page interaction.
+
+## Gate operations and request approval
+
+Use `enabled` for a tool's current availability and `allowedSources` to restrict it to `chat`, `webmcp`, both, or neither. Omitted values preserve access from both sources. Do not infer backend permission from these frontend settings; registered page context remains separately exposed.
+
+For irreversible, destructive, or otherwise high-risk operations, add `approval` with application-owned `{ title, description }` or a synchronous callback deriving that text from validated arguments and current domain state. Identify the exact object and consequence. Return `false` only for branches that intentionally need no review. The overlay shows the operation and waits before calling the business action. For custom interfaces, use `pendingApproval`, `approveAction(id)`, and `rejectAction(id)`; never expose approval methods as model tools or approve from an effect. Mount a usable review UI whenever a tool requires approval.
+
+Approval covers one call. Rejection produces a failed tool result and a rejected action; subsequent queued calls can continue. Stop or Escape cancels the whole task. Changed policy or review details are rechecked before execution. Session switches and resets cancel pending review; cache restoration never resumes it. Keep server authorization, transactions, and any durable audit in the application.
 
 ## Enable conversation caching deliberately
 
@@ -59,6 +67,7 @@ Exercise these observable behaviors in the host's existing test setup:
 3. The target highlight and action timeline are visible; pointer and keyboard input cannot change the page during execution; the stop control remains usable.
 4. Reload restores the selected conversation without replaying operations; another account/workspace cannot see it; reset removes it. Denied, expired, or corrupt localStorage does not break chat.
 5. WebMCP lists the expected names and fresh context, invokes the same operation without a chat endpoint, and unregisters tools when their route/provider unmounts. Test a real supported browser when available; label fixture-based compatibility tests accurately.
-6. Typecheck and build with the host's actual React version. When changing Pageway itself, run its React 18/19 consumer compatibility checks as well.
+6. High-risk operations show the correct object and arguments without mutating before approval. Approve performs the operation once; reject and stop leave it unchanged. Disabled and source-restricted tools cannot execute stale calls. Refresh does not revive a pending approval.
+7. Typecheck and build with the host's actual React version. When changing Pageway itself, run its React 18/19 consumer compatibility checks as well.
 
 Summarize the integration points, selected transport, cache behavior, WebMCP availability, and tests actually run. Do not deploy, publish, or switch paid model accounts merely because the integration is complete.

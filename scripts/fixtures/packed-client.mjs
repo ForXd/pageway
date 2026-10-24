@@ -104,7 +104,7 @@ function connect(count = 2) {
   return { requests, signals, fetcher };
 }
 
-async function mount(fetcher, pending) {
+async function mount(fetcher, pending, policy = {}) {
   const host = document.createElement('div');
   host.inert = false;
   document.body.append(host);
@@ -123,6 +123,7 @@ async function mount(fetcher, pending) {
         required: ['value'],
         additionalProperties: false,
       },
+      ...policy,
       execute: async (args, { signal }) => {
         if (pending) {
           pending.signal = signal;
@@ -216,6 +217,60 @@ try {
     await page.unmount();
   }
 
+  const reviewedConnection = connect(2);
+  const reviewedPage = await mount(reviewedConnection.fetcher, undefined, {
+    enabled: true,
+    allowedSources: ['chat'],
+    approval: {
+      title: 'Approve counter change?',
+      description: 'The page counter will increase by the requested value.',
+    },
+  });
+  try {
+    assert.equal(reviewedPage.agent.tools[0].enabled, true);
+    assert.deepEqual(reviewedPage.agent.tools[0].allowedSources, ['chat']);
+    const task = reviewedPage.agent.sendMessage('Review each counter change');
+    await waitFor(() => reviewedPage.agent.pendingApproval !== null);
+    const firstReview = reviewedPage.agent.pendingApproval;
+    assert.equal(firstReview.source, 'chat');
+    assert.equal(firstReview.title, 'Approve counter change?');
+    assert.deepEqual(firstReview.args, { value: 2 });
+    assert.equal(reviewedPage.agent.status, 'running');
+    assert.equal(reviewedPage.host.querySelector('output').textContent, '0');
+    assert.equal(reviewedPage.agent.approveAction('stale-review'), false);
+    assert.equal(reviewedPage.agent.approveAction(firstReview.id), true);
+    assert.equal(reviewedPage.agent.approveAction(firstReview.id), false);
+    await waitFor(() => {
+      const pending = reviewedPage.agent.pendingApproval;
+      return pending !== null && pending.id !== firstReview.id;
+    });
+    const secondReview = reviewedPage.agent.pendingApproval;
+    assert.equal(reviewedPage.host.querySelector('output').textContent, '2');
+    assert.equal(reviewedPage.agent.rejectAction(secondReview.id), true);
+    assert.equal(reviewedPage.agent.approveAction(secondReview.id), false);
+    await deadline(task);
+    await waitFor(() => reviewedPage.agent.status === 'idle');
+    assert.equal(reviewedPage.agent.pendingApproval, null);
+    assert.equal(reviewedPage.host.querySelector('output').textContent, '2');
+    assert.deepEqual(
+      reviewedPage.agent.actions.map((action) => action.status),
+      ['success', 'rejected'],
+    );
+    assert.deepEqual(
+      reviewedPage.agent.actions.map((action) => action.approval.status),
+      ['approved', 'rejected'],
+    );
+    assert.equal(reviewedConnection.requests.length, 2);
+    assert.deepEqual(
+      reviewedConnection.requests[1].messages
+        .filter((message) => message.role === 'tool')
+        .map((message) => JSON.parse(message.content).ok),
+      [true, false],
+    );
+  } finally {
+    await reviewedPage.unmount();
+  }
+
   for (const action of ['stop', 'unmount']) {
     const pending = { entered: deferred(), complete: deferred() };
     const connection = connect(1);
@@ -271,7 +326,7 @@ try {
   }
   assert.deepEqual(errors, [], 'React client must not emit lifecycle warnings.');
   console.log(
-    `React ${React.version}: StrictMode, async tool roundtrip, fresh state, stop and unmount cleanup passed.`,
+    `React ${React.version}: StrictMode, async tool roundtrip, fresh state, approval/rejection, stop and unmount cleanup passed.`,
   );
 } finally {
   console.error = originalError;

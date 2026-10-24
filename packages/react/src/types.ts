@@ -2,11 +2,32 @@ import type { JSONSchema, PageContext } from '@zllling/pageway-protocol';
 
 export type { JSONSchema, PageContext } from '@zllling/pageway-protocol';
 
+export type PagewayActionSource = 'chat' | 'webmcp';
+
+export interface PageToolApproval {
+  title: string;
+  description: string;
+}
+
+export interface PendingApproval extends PageToolApproval {
+  /** Opaque, single-use approval token; distinct from the model's tool-call ID. */
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  source: PagewayActionSource;
+}
+
 export interface PageTool<T extends Record<string, unknown> = Record<string, unknown>> {
   name: string;
   description: string;
   parameters: JSONSchema;
   target?: string | ((args: T) => HTMLElement | null);
+  /** Defaults to true. Disabled tools are neither advertised nor executable. */
+  enabled?: boolean;
+  /** Defaults to both sources. An empty list disables all agent access. */
+  allowedSources?: PagewayActionSource[];
+  /** Application-owned review text. Return false for calls that need no approval. */
+  approval?: PageToolApproval | ((args: T) => PageToolApproval | false);
   execute: (args: T, context: { signal: AbortSignal }) => unknown | Promise<unknown>;
 }
 
@@ -14,6 +35,8 @@ export interface PagewayToolInfo {
   name: string;
   description: string;
   parameters: JSONSchema;
+  enabled?: boolean;
+  allowedSources?: PagewayActionSource[];
 }
 
 export interface PagewayToolCall {
@@ -35,14 +58,20 @@ export interface ActionStep {
   id: string;
   name: string;
   label: string;
-  status: 'planning' | 'running' | 'success' | 'error' | 'cancelled';
+  status:
+    'planning' | 'awaiting-approval' | 'running' | 'success' | 'error' | 'cancelled' | 'rejected';
   args: Record<string, unknown>;
   result?: unknown;
   error?: string;
   startedAt: number;
   endedAt?: number;
   target?: string;
-  source?: 'chat' | 'webmcp';
+  source?: PagewayActionSource;
+  approval?: PageToolApproval & {
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: number;
+    decidedAt?: number;
+  };
 }
 
 export type PagewayToolResult = { ok: true; result: unknown } | { ok: false; error: string };
@@ -59,7 +88,7 @@ export interface Spotlight {
 }
 
 export interface PagewayActivity {
-  phase: 'planning' | 'moving' | 'acting' | 'success' | 'error';
+  phase: 'planning' | 'awaiting-approval' | 'moving' | 'acting' | 'success' | 'error';
   label: string;
   toolName?: string;
 }
@@ -75,6 +104,7 @@ export interface PagewaySnapshot {
   cursor: { x: number; y: number } | null;
   activity: PagewayActivity | null;
   animationDuration: number;
+  pendingApproval: PendingApproval | null;
 }
 
 export interface PagewayEngineOptions {

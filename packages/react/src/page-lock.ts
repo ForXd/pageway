@@ -37,23 +37,65 @@ export function acquirePageLock(
   const close = () => {
     if (!dialog.open) stop();
   };
+  const controls = () =>
+    [
+      ...dialog.querySelectorAll<HTMLElement>('button:not([disabled]), [data-pageway-scroll]'),
+    ].filter((element) => element.tabIndex >= 0 && !element.hidden);
+  const scrollRegion = (target: EventTarget | null) => {
+    const region = (target as HTMLElement | null)?.closest?.<HTMLElement>('[data-pageway-scroll]');
+    return region && dialog.contains(region) ? region : null;
+  };
   const keyboard = (event: KeyboardEvent) => {
-    // Prevent host-page shortcuts and edits as well as focus escaping the task.
+    // Block host shortcuts while explicitly supporting the dialog's controls.
+    // Dispatching click ourselves keeps document/window shortcuts from seeing
+    // Enter or Space without preventing approval buttons from being activated.
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (
-      event.key === 'Escape' ||
-      ((event.key === 'Enter' || event.key === ' ') && event.target === stopControl)
-    )
+    if (event.key === 'Escape') {
       stop();
-    else if (event.key === 'Tab') stopControl.focus({ preventScroll: true });
+      return;
+    }
+    const available = controls();
+    if (event.key === 'Tab') {
+      const index = available.indexOf(document.activeElement as HTMLElement);
+      const next = event.shiftKey
+        ? index <= 0
+          ? available.length - 1
+          : index - 1
+        : (index + 1) % available.length;
+      (available[next] ?? stopControl).focus({ preventScroll: true });
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (
+      (event.key === 'Enter' || event.key === ' ') &&
+      target?.tagName === 'BUTTON' &&
+      available.includes(target)
+    ) {
+      if (target === stopControl) stop();
+      else target.click();
+      return;
+    }
+    const region = scrollRegion(event.target);
+    if (!region) return;
+    const distance = Math.max(40, region.clientHeight * 0.8);
+    if (event.key === 'ArrowDown') region.scrollTop += 40;
+    else if (event.key === 'ArrowUp') region.scrollTop -= 40;
+    else if (event.key === 'PageDown' || (event.key === ' ' && !event.shiftKey))
+      region.scrollTop += distance;
+    else if (event.key === 'PageUp' || (event.key === ' ' && event.shiftKey))
+      region.scrollTop -= distance;
+    else if (event.key === 'Home') region.scrollTop = 0;
+    else if (event.key === 'End') region.scrollTop = region.scrollHeight;
   };
   const editing = (event: Event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
   };
   const wheel = (event: Event) => {
-    event.preventDefault();
+    // Arguments can be long; allow scrolling inside the approval card while
+    // the host page remains inert and its root scroll containers stay locked.
+    if (!scrollRegion(event.target)) event.preventDefault();
   };
   dialog.addEventListener('cancel', cancel);
   dialog.addEventListener('close', close);

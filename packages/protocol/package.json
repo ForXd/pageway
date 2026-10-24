@@ -1,6 +1,6 @@
 {
   "name": "@zllling/pageway-protocol",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "description": "AG-UI protocol contracts and streaming transport for Pageway",
   "license": "MIT",
