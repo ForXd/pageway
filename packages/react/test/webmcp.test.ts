@@ -94,6 +94,47 @@ afterEach(() => {
 });
 
 describe('WebMCP bridge', () => {
+  it('advertises only enabled browser capabilities and revokes saved handles and pending calls', async () => {
+    const { tools } = currentContext();
+    let definitions: PageTool[] = [
+      { ...pageTool('disabled'), enabled: false },
+      { ...pageTool('chat_only'), allowedSources: ['chat'] },
+      { ...pageTool('denied'), allowedSources: [] },
+      { ...pageTool('allowed'), allowedSources: ['webmcp'] },
+    ];
+    let signal: AbortSignal | undefined;
+    const { instance } = bridge({
+      getTools: () => definitions,
+      executeTool: async (_name, _args, invocationSignal) => {
+        signal = invocationSignal;
+        return new Promise((resolve) =>
+          invocationSignal.addEventListener(
+            'abort',
+            () => resolve({ ok: false, error: 'Cancelled' }),
+            { once: true },
+          ),
+        );
+      },
+    });
+    await settled();
+    expect([...tools.keys()]).toEqual(['pageway_get_context', 'pageway_allowed']);
+    const saved = tools.get('pageway_allowed')!;
+    const call = saved.execute({ id: 'PW-103' });
+    definitions = [{ ...definitions[3], allowedSources: ['chat'] }];
+    instance.sync();
+    expect(signal?.aborted).toBe(true);
+    expect(await call).toMatchObject({ ok: false });
+    expect(await saved.execute({ id: 'PW-103' })).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('no longer registered'),
+    });
+    expect([...tools.keys()]).toEqual(['pageway_get_context']);
+    definitions = [{ ...definitions[0], allowedSources: ['webmcp'] }];
+    instance.sync();
+    await settled();
+    expect(tools.has('pageway_allowed')).toBe(true);
+  });
+
   it('reports unsupported in SSR and browsers without a usable native API', () => {
     vi.stubGlobal('document', undefined);
     vi.stubGlobal('navigator', undefined);

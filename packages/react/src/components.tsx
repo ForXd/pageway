@@ -5,6 +5,7 @@ import { usePageway } from './provider.js';
 import type { ActionStep } from './types.js';
 import { acquirePageLock } from './page-lock.js';
 import { useClientLayoutEffect } from './client-effect.js';
+import { isToolAllowed } from './tool-policy.js';
 
 function ArrowIcon() {
   return (
@@ -34,7 +35,9 @@ function StatusIcon({ status }: { status: ActionStep['status'] }) {
         />
       </svg>
     );
-  if (status === 'error' || status === 'cancelled') return <span aria-hidden="true">×</span>;
+  if (status === 'error' || status === 'cancelled' || status === 'rejected')
+    return <span aria-hidden="true">×</span>;
+  if (status === 'awaiting-approval') return <span aria-hidden="true">?</span>;
   return (
     <span
       className={status === 'running' ? 'pw-status-spinner' : 'pw-status-dot'}
@@ -62,7 +65,8 @@ export function PagewayChat({
   suggestions = [],
   className = '',
 }: PagewayChatProps): ReactElement {
-  const { messages, sendMessage, stop, reset, status, error, tools, actions } = usePageway();
+  const { messages, sendMessage, stop, reset, status, error, tools, actions, pendingApproval } =
+    usePageway();
   const [input, setInput] = useState('');
   const conversation = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -71,6 +75,7 @@ export function PagewayChat({
     (message) => message.role !== 'tool' && (message.content || message.toolCalls?.length),
   );
   const lastAction = actions.at(-1);
+  const availableTools = tools.filter((tool) => isToolAllowed(tool, 'chat'));
   // biome-ignore lint/correctness/useExhaustiveDependencies: Streamed message/status updates change the log height and must scroll its own container.
   useEffect(() => {
     // Keep streamed replies visible without scrolling the host page away from
@@ -171,9 +176,11 @@ export function PagewayChat({
               <i />
               <i />
             </span>
-            {lastAction?.status === 'running'
-              ? `Running ${lastAction.name.replaceAll('_', ' ')}…`
-              : 'Working with your page…'}
+            {pendingApproval
+              ? 'Waiting for your approval…'
+              : lastAction?.status === 'running'
+                ? `Running ${lastAction.name.replaceAll('_', ' ')}…`
+                : 'Working with your page…'}
           </div>
         )}
         {error && (
@@ -229,7 +236,7 @@ export function PagewayChat({
           <div className="pw-composer-footer">
             <span>
               <i className="pw-capability-dot" />
-              {tools.length} page tools available
+              {availableTools.length} page tools available
             </span>
             {busy ? (
               <button
@@ -287,7 +294,9 @@ export function ActionTimeline({ className = '' }: { className?: string }): Reac
                   <span className="pw-action-status">
                     {action.status === 'success'
                       ? 'Done'
-                      : action.status.charAt(0).toUpperCase() + action.status.slice(1)}
+                      : action.status === 'awaiting-approval'
+                        ? 'Awaiting approval'
+                        : action.status.charAt(0).toUpperCase() + action.status.slice(1)}
                   </span>
                   <span className="pw-action-chevron" aria-hidden="true">
                     ⌄
@@ -295,6 +304,21 @@ export function ActionTimeline({ className = '' }: { className?: string }): Reac
                 </summary>
                 <div className="pw-action-detail">
                   <p>{action.label}</p>
+                  {action.approval && (
+                    <div className={`pw-action-approval pw-approval-${action.approval.status}`}>
+                      <strong>
+                        {action.approval.status === 'approved'
+                          ? 'Approved by you'
+                          : action.approval.status === 'rejected'
+                            ? 'Rejected by you'
+                            : action.status === 'awaiting-approval'
+                              ? 'Your approval is required'
+                              : 'Approval was not granted'}
+                      </strong>
+                      <p>{action.approval.title}</p>
+                      <p>{action.approval.description}</p>
+                    </div>
+                  )}
                   <span className="pw-detail-label">Arguments</span>
                   <pre>{json(action.args)}</pre>
                   {action.result !== undefined && (
@@ -339,16 +363,36 @@ export interface PagewayOverlayProps {
 }
 
 export function PagewayOverlay({ lockPage = true }: PagewayOverlayProps = {}) {
-  const { spotlight, path, cursor, activity, animationDuration, status, stop, actions } =
-    usePageway();
+  const {
+    spotlight,
+    path,
+    cursor,
+    activity,
+    animationDuration,
+    status,
+    stop,
+    actions,
+    pendingApproval,
+    approveAction,
+    rejectAction,
+  } = usePageway();
   const dialog = useRef<HTMLDialogElement>(null);
   const stopControl = useRef<HTMLButtonElement>(null);
+  const rejectControl = useRef<HTMLButtonElement>(null);
   const descriptionId = useId();
+  const approvalTitleId = useId();
+  const approvalDescriptionId = useId();
   const busy = status === 'running';
   useClientLayoutEffect(() => {
     if (!busy || !lockPage || !dialog.current || !stopControl.current) return;
     return acquirePageLock(dialog.current, stopControl.current, stop);
   }, [busy, lockPage, stop]);
+  const approvalId = pendingApproval?.id;
+  useClientLayoutEffect(() => {
+    if (!busy || !lockPage) return;
+    const control = approvalId ? rejectControl.current : stopControl.current;
+    control?.focus({ preventScroll: true });
+  }, [busy, lockPage, approvalId]);
   if (!busy || typeof document === 'undefined') return null;
   const phase = activity?.phase ?? 'planning';
   const routes = path.slice(1).map((point, index) => ({
@@ -386,28 +430,40 @@ export function PagewayOverlay({ lockPage = true }: PagewayOverlayProps = {}) {
       } as CSSProperties)
     : undefined;
   const phaseTitle =
-    phase === 'planning'
-      ? 'Pageway is planning'
-      : phase === 'moving'
-        ? 'Moving to the next action'
-        : phase === 'acting'
-          ? 'Updating your page'
-          : phase === 'success'
-            ? 'Step completed'
-            : 'Step needs attention';
+    phase === 'awaiting-approval'
+      ? 'Your approval is required'
+      : phase === 'planning'
+        ? 'Pageway is planning'
+        : phase === 'moving'
+          ? 'Moving to the next action'
+          : phase === 'acting'
+            ? 'Updating your page'
+            : phase === 'success'
+              ? 'Step completed'
+              : 'Step needs attention';
   const completed = actions.filter((action) => action.status === 'success').length;
   const overlay = (
     <>
       <div className="pw-run-status" role="status" aria-live="polite">
         <span className={`pw-run-indicator pw-run-indicator-${phase}`} aria-hidden="true">
-          {phase === 'success' ? '✓' : phase === 'error' ? '!' : <span />}
+          {phase === 'success' ? (
+            '✓'
+          ) : phase === 'error' ? (
+            '!'
+          ) : phase === 'awaiting-approval' ? (
+            '?'
+          ) : (
+            <span />
+          )}
         </span>
         <div className="pw-run-copy">
           <strong>{phaseTitle}</strong>
           <span id={descriptionId}>
             {activity?.toolName
               ? activity.toolName.replaceAll('_', ' ')
-              : 'The page is locked while the agent works.'}
+              : lockPage
+                ? 'The page is locked while the agent works.'
+                : 'Pageway is working with your page.'}
             {completed > 0 ? ` · ${completed} completed` : ''}
           </span>
         </div>
@@ -421,6 +477,68 @@ export function PagewayOverlay({ lockPage = true }: PagewayOverlayProps = {}) {
           <span aria-hidden="true">■</span>Stop task<kbd>Esc</kbd>
         </button>
       </div>
+      {pendingApproval && (
+        <section
+          className="pw-approval-card"
+          aria-labelledby={approvalTitleId}
+          aria-describedby={approvalDescriptionId}
+          data-pageway-approval={pendingApproval.id}
+        >
+          <section
+            className="pw-approval-content"
+            aria-label="Action review details"
+            data-pageway-scroll
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: This bounded review region must accept keyboard focus so users can scroll all arguments before deciding.
+            tabIndex={0}
+          >
+            <div className="pw-approval-heading">
+              <span className="pw-approval-eyebrow">Review this action</span>
+              <h2 id={approvalTitleId}>{pendingApproval.title}</h2>
+              <p id={approvalDescriptionId}>{pendingApproval.description}</p>
+            </div>
+            <div className="pw-approval-details">
+              <dl>
+                <div>
+                  <dt>Requested by</dt>
+                  <dd>
+                    {pendingApproval.source === 'webmcp'
+                      ? 'Browser agent (WebMCP)'
+                      : 'Chat assistant'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Tool</dt>
+                  <dd>{pendingApproval.name}</dd>
+                </div>
+              </dl>
+              <span className="pw-approval-arguments-label">Arguments</span>
+              <pre>{json(pendingApproval.args)}</pre>
+            </div>
+          </section>
+          <div className="pw-approval-footer">
+            <p>Approval applies only to this action with these arguments.</p>
+            <div className="pw-approval-buttons">
+              <button
+                ref={rejectControl}
+                data-pageway-reject
+                className="pw-approval-reject"
+                type="button"
+                onClick={() => rejectAction(pendingApproval.id)}
+              >
+                Reject action
+              </button>
+              <button
+                className="pw-approval-accept"
+                data-pageway-approve
+                type="button"
+                onClick={() => approveAction(pendingApproval.id)}
+              >
+                Approve this action
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
       <div className="pw-operation-visuals" aria-hidden="true">
         <svg className="pw-path-svg" aria-hidden="true">
           {routes.slice(0, -1).map((route) => (
@@ -517,8 +635,9 @@ export function PagewayOverlay({ lockPage = true }: PagewayOverlayProps = {}) {
         style={style}
         data-pageway-lock="true"
         data-pageway-phase={phase}
-        aria-label="Pageway is operating the page"
-        aria-describedby={descriptionId}
+        aria-label={pendingApproval ? undefined : 'Pageway is operating the page'}
+        aria-labelledby={pendingApproval ? approvalTitleId : undefined}
+        aria-describedby={pendingApproval ? approvalDescriptionId : descriptionId}
       >
         {overlay}
       </dialog>

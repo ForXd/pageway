@@ -75,6 +75,52 @@ function setup() {
 }
 
 describe('browser conversation session storage', () => {
+  it('preserves approval decisions but cancels unfinished review on restoration', () => {
+    const { store } = setup();
+    for (const status of ['awaiting-approval', 'success', 'rejected'] as const) {
+      const original = history();
+      original.actions[0].status = status;
+      original.actions[0].approval = {
+        title: 'Review update',
+        description: 'Update PW-103.',
+        status:
+          status === 'awaiting-approval'
+            ? 'pending'
+            : status === 'success'
+              ? 'approved'
+              : 'rejected',
+        requestedAt: NOW - 100,
+        ...(status !== 'awaiting-approval' ? { decidedAt: NOW } : {}),
+      };
+      store.save(original);
+      const restored = store.load();
+      expect(restored?.actions[0].approval).toEqual(original.actions[0].approval);
+      expect(restored?.actions[0].status).toBe(
+        status === 'awaiting-approval' ? 'cancelled' : status,
+      );
+    }
+  });
+
+  it('rejects malformed cached approval decisions', () => {
+    const { store, seed } = setup();
+    const original = history();
+    seed({
+      ...original,
+      actions: [
+        {
+          ...original.actions[0],
+          approval: {
+            title: 'Review',
+            description: 'Update',
+            status: 'auto-approved',
+            requestedAt: NOW,
+          },
+        },
+      ],
+    });
+    expect(store.load()).toBeNull();
+  });
+
   it('round-trips messages, provider metadata, tool results and the settled action timeline', () => {
     const { store } = setup();
     const original = history();

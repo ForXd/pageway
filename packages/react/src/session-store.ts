@@ -161,10 +161,12 @@ function normalize(value: unknown, now: number): StoredSession {
     const status = source.status;
     if (
       status !== 'planning' &&
+      status !== 'awaiting-approval' &&
       status !== 'running' &&
       status !== 'success' &&
       status !== 'error' &&
-      status !== 'cancelled'
+      status !== 'cancelled' &&
+      status !== 'rejected'
     )
       return invalid();
     const action: ActionStep = {
@@ -183,7 +185,24 @@ function normalize(value: unknown, now: number): StoredSession {
       if (source.source !== 'chat' && source.source !== 'webmcp') return invalid();
       action.source = source.source;
     }
-    if (status === 'planning' || status === 'running') {
+    if (source.approval !== undefined) {
+      const approval = record(source.approval);
+      if (
+        approval.status !== 'pending' &&
+        approval.status !== 'approved' &&
+        approval.status !== 'rejected'
+      )
+        return invalid();
+      action.approval = {
+        title: text(approval.title),
+        description: text(approval.description),
+        status: approval.status,
+        requestedAt: timestamp(approval.requestedAt),
+      };
+      if (approval.decidedAt !== undefined)
+        action.approval.decidedAt = timestamp(approval.decidedAt);
+    }
+    if (status === 'planning' || status === 'awaiting-approval' || status === 'running') {
       action.status = 'cancelled';
       action.error = INTERRUPTED;
       action.endedAt = Math.max(action.startedAt, now);

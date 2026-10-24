@@ -51,8 +51,11 @@ pnpm dev
 - `创建任务“准备发布说明”，高优先级`
 - `总结当前页面`
 - `清除筛选`
+- `删除 PW-105`（先显示具体任务和删除后果，批准后执行）
 
-也可直接操作看板，Agent 下一轮会读取最新应用状态。AI 任务从开始到结束会锁定页面的鼠标与键盘操作，只保留浮层的 Stop task 按钮（或 Esc）用于终止。工具执行时，Agent 光标从聊天框移动到目标，显示聚焦边框、点击脉冲、逐步绘制的 Bézier 路径、步骤编号和完成反馈；操作路径保留参数、结果、耗时与失败详情。事件面板显示实际 AG-UI 流。
+看板的 Agent permissions 可分别关闭 Agent 编辑、限制外部 Agent 编辑，或要求每次编辑审批。删除任务始终需要逐次批准；查看、筛选和切换视图不受编辑开关影响。拒绝只跳过当前调用，Stop task / Esc 取消整个任务。
+
+也可直接操作看板，Agent 下一轮会读取最新应用状态。AI 任务从开始到结束会锁定页面的鼠标与键盘操作，保留浮层的 Stop task 按钮（或 Esc）用于终止；等待审批时还提供批准和拒绝按钮。工具执行时，Agent 光标从聊天框移动到目标，显示聚焦边框、点击脉冲、逐步绘制的 Bézier 路径、步骤编号和完成反馈；操作路径保留参数、结果、耗时与失败详情。事件面板显示实际 AG-UI 流。
 
 端口被占用时，不必停止其他程序：
 
@@ -153,11 +156,19 @@ function YourPage() {
 
 `apiOrigin` 接受同源路径或绝对 API 根地址，默认追加 `chat/completions`，可用 `apiPath` 指定其他路径。`model` 是代理允许的模型名。每轮请求发送标准 `messages`、`tools`、`stream: true`，工具结果以 `role: "tool"` 继续发送；后端不需要理解 Pageway 专属请求体。已有 AG-UI 服务继续使用 `endpoint="/api/agent"`，不要同时传入 `apiOrigin`。
 
-`usePageway()` 可用于定制 UI，提供 `messages`、`sendMessage`、`stop`、`reset`、`status`、`error`、`actions`、`events`、`tools` 和 `webmcp`。Provider 的 `headers` 用于应用鉴权，`animationDuration` 控制移动时长；模型 API Key 保留在服务端。`timeoutMs` 控制 apiOrigin 模式每轮模型请求超时，默认 180000 毫秒，范围 1–300000 毫秒；AG-UI endpoint 模式由服务端控制模型超时。
+`usePageway()` 可用于定制 UI，提供 `messages`、`sendMessage`、`stop`、`reset`、`status`、`error`、`actions`、`events`、`tools`、`webmcp`、`pendingApproval`、`approveAction(id)` 和 `rejectAction(id)`。Provider 的 `headers` 用于应用鉴权，`animationDuration` 控制移动时长；模型 API Key 保留在服务端。`timeoutMs` 控制 apiOrigin 模式每轮模型请求超时，默认 180000 毫秒，范围 1–300000 毫秒；AG-UI endpoint 模式由服务端控制模型超时。
 
 `PagewayOverlay` 默认通过原生 modal dialog 锁定整个页面，正常结束、失败、取消或卸载时恢复交互与焦点。若宿主已实现自己的无障碍锁，可传 `lockPage={false}`。动画遵循系统减少动态效果偏好；`animationDuration={0}` 可关闭移动动画（保留简短的状态反馈）。
 
 工具回调支持同步/异步返回值及第二个 `{ signal }` 参数。异步业务请求应传递该 AbortSignal；停止按钮不能撤销已完成的业务修改，也不能自动取消忽略 signal 的外部副作用。工具动态卸载后不能再执行。浏览器在执行前校验 JSON Schema；后端业务 API 仍负责业务权限。
+
+## 精细权限与高风险操作审批
+
+每个 `usePageTool` 可设置 `enabled`（默认 `true`）与 `allowedSources`（默认 `['chat', 'webmcp']`）。禁用工具不再向模型或外部 Agent 暴露，执行器也会拒绝旧调用；`allowedSources: ['chat']` 只开放给内置聊天，空数组拒绝所有 Agent 来源。已发布的页面上下文需单独按数据策略控制。
+
+高风险工具配置 `approval: { title, description }`，或同步函数 `(args) => ({ title, description } | false)`：根据当前业务状态显示对象名称、参数和后果；返回 `false` 表示本次无须审批。浮层在业务回调前暂停，用户批准仅放行当前操作。查看 [React SDK 示例](packages/react/README.md#tool-permissions-and-user-approval)。
+
+自定义界面使用 `usePageway().pendingApproval` 及 `approveAction(id)` / `rejectAction(id)`；不要把审批决定暴露为 Agent 工具或自动批准。等待期间 `status` 仍为 `running`，activity 为 `awaiting-approval`。权限与审批内容在执行前复核；停止、重置、切换会话和卸载会清除等待，缓存不会恢复待审批操作。审批是浏览器内的用户确认，服务端仍须执行鉴权、业务权限与事务检查。
 
 ## OpenAI 兼容凭证代理
 
@@ -279,7 +290,7 @@ pnpm check:model:frontend # 固定匿名免费模型，验证前端循环→HTTP
 
 GitHub Actions 在 Node 24/26 执行质量门禁，并上传覆盖率、浏览器报告及已验证 tarball。独立消费者验证覆盖 React 18.0.0、18.2.0、18.3.1 和 19.3.1，检查打包后的 SDK 在各版本中的安装、类型、SSR 与客户端生命周期。`v*` 标签触发同样的完整检查，再通过 npm OIDC 按依赖顺序发布三个包；首次认证与 trusted publisher 配置见 [发布说明](docs/releasing.md)。
 
-这是开发者预览，不包含会话数据库、多用户身份系统、持久审计、限流、审批策略或工具业务权限。应用需沿用自己的登录与业务授权；示例服务默认监听 loopback 并限制 CORS。公开部署时在 handler 外接入认证、配额与业务权限。CORS 不是授权。上下文和工具结果属于客户端输入，不能作为后端权限依据。
+这是开发者预览，不包含会话数据库、多用户身份系统、持久审计、限流、服务端审批工作流或工具业务权限。应用需沿用自己的登录与业务授权；示例服务默认监听 loopback 并限制 CORS。公开部署时在 handler 外接入认证、配额与业务权限。CORS 不是授权。上下文和工具结果属于客户端输入，不能作为后端权限依据。
 
 构建产物在各包 `dist/`，CSS 通过 `@zllling/pageway-react/styles.css` 引入。包使用 ES modules；React 和 React DOM 由应用提供，支持 18 和 19。
 

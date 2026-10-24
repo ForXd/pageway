@@ -7,6 +7,11 @@ class ElementStub extends EventTarget {
   open = false;
   style = { overflow: '' };
   children: ElementStub[] = [];
+  tabIndex = 0;
+  hidden = false;
+  tagName = 'BUTTON';
+  querySelectorAll = () => this.children;
+  click = vi.fn();
   ownerDocument!: DocumentStub;
   contains = (element: ElementStub): boolean => this.children.includes(element);
   focus = vi.fn(() => {
@@ -48,6 +53,7 @@ function setup(
   for (const element of [page, alreadyInert, dialog, stopButton, priorFocus])
     element.ownerDocument = document;
   document.body.children = [page, alreadyInert, dialog];
+  dialog.children = [stopButton];
   document.body.style.overflow = 'auto';
   document.documentElement.style.overflow = 'scroll';
   if (fallback) {

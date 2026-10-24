@@ -1,4 +1,5 @@
 import type { JSONSchema, PageContext, PageTool } from './types.js';
+import { isToolAllowed } from './tool-policy.js';
 
 export interface WebMCPOptions {
   /** Namespace shared by page tools and the built-in get_context tool. */
@@ -239,14 +240,17 @@ export function createWebMCPBridge(options: WebMCPBridgeOptions): WebMCPBridge {
             annotations: { readOnlyHint: true },
           },
         },
-        ...options.getTools().map((tool) => ({
-          original: tool.name,
-          tool: {
-            name: `${prefix}${tool.name}`,
-            description: tool.description,
-            inputSchema: tool.parameters,
-          },
-        })),
+        ...options
+          .getTools()
+          .filter((tool) => isToolAllowed(tool, 'webmcp'))
+          .map((tool) => ({
+            original: tool.name,
+            tool: {
+              name: `${prefix}${tool.name}`,
+              description: tool.description,
+              inputSchema: tool.parameters,
+            },
+          })),
       ];
       for (const { tool, original } of definitions) {
         if (!/^[A-Za-z0-9_.-]{1,128}$/.test(tool.name)) {

@@ -186,7 +186,8 @@
   height: 12px;
 }
 .pw-message-tool.pw-is-error,
-.pw-message-tool.pw-is-cancelled {
+.pw-message-tool.pw-is-cancelled,
+.pw-message-tool.pw-is-rejected {
   color: #986356;
   background: #f7efea;
   border-color: #eeddd2;
@@ -435,7 +436,8 @@
   width: 13px;
 }
 .pw-action.pw-is-error .pw-action-marker,
-.pw-action.pw-is-cancelled .pw-action-marker {
+.pw-action.pw-is-cancelled .pw-action-marker,
+.pw-action.pw-is-rejected .pw-action-marker {
   background: #faf0e9;
   border-color: #ecdacf;
   color: #ac7861;
@@ -510,6 +512,26 @@
 .pw-action-detail .pw-action-error {
   color: #a56f58;
 }
+.pw-action-approval {
+  margin: 8px 0 12px;
+  padding: 9px;
+  border: 1px solid #dce6d2;
+  border-radius: 6px;
+  background: #f7f9f2;
+}
+.pw-action-approval strong {
+  font-size: 10px;
+  color: #526a43;
+}
+.pw-action-approval p:last-child {
+  margin-bottom: 0;
+}
+.pw-action.pw-is-awaiting-approval .pw-action-marker,
+.pw-message-tool.pw-is-awaiting-approval {
+  color: #856016;
+  background: #fbf2d9;
+  border-color: #e5d29c;
+}
 .pw-status-dot {
   height: 4px;
   width: 4px;
@@ -545,7 +567,7 @@
   background: transparent;
   outline: none;
   pointer-events: auto;
-  touch-action: none;
+  touch-action: pan-y;
 }
 .pw-operation-dialog::backdrop {
   background: #23332009;
@@ -611,6 +633,10 @@
   background: #f4e6dc;
   color: #a26b48;
 }
+.pw-run-indicator-awaiting-approval {
+  background: #fbf2d9;
+  color: #856016;
+}
 .pw-run-copy {
   display: flex;
   flex: 1;
@@ -670,6 +696,130 @@
   border-radius: 3px;
   padding: 2px 3px;
   margin-left: 3px;
+}
+.pw-approval-card {
+  position: absolute;
+  top: 108px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 132px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fcfdf8;
+  color: #2f442b;
+  border: 1px solid #cbd8be;
+  border-radius: 16px;
+  box-shadow: 0 18px 64px #23351430;
+  z-index: 3;
+  pointer-events: auto;
+}
+.pw-approval-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 26px;
+  overflow-wrap: anywhere;
+}
+.pw-approval-eyebrow,
+.pw-approval-arguments-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #65765b;
+}
+.pw-approval-heading h2 {
+  margin: 10px 0;
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.pw-approval-heading p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #52634a;
+  white-space: pre-wrap;
+}
+.pw-approval-details dl {
+  margin: 22px 0 18px;
+  display: grid;
+  gap: 12px;
+  font-size: 12px;
+}
+.pw-approval-details dl > div {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 14px;
+}
+.pw-approval-details dt {
+  color: #65765b;
+}
+.pw-approval-details dd {
+  margin: 0;
+  font-weight: 500;
+}
+.pw-approval-details pre {
+  margin: 8px 0 0;
+  padding: 12px;
+  border: 1px solid #e0e8d6;
+  border-radius: 7px;
+  background: #f1f4ec;
+  color: #405735;
+  font:
+    11px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pw-approval-footer {
+  flex-shrink: 0;
+  padding: 18px 26px 22px;
+  border-top: 1px solid #e0e8d6;
+}
+.pw-approval-footer p {
+  margin: 0 0 14px;
+  color: #65765b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.pw-approval-buttons {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pw-approval-buttons button {
+  min-height: 42px;
+  padding: 10px 16px;
+  border: 1px solid #a3b590;
+  border-radius: 8px;
+  font:
+    600 12px/1.4 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+.pw-approval-reject {
+  background: #f5f8ef;
+  color: #3f5531;
+}
+.pw-approval-accept {
+  background: #4d6b36;
+  color: #fff;
+}
+.pw-approval-buttons button:hover {
+  filter: brightness(0.95);
+}
+.pw-approval-buttons button:focus-visible,
+.pw-approval-content:focus-visible {
+  outline: 2px solid #658844;
+  outline-offset: -4px;
 }
 .pw-path-svg {
   position: absolute;

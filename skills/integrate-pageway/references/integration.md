@@ -105,6 +105,22 @@ The completion URL above is `/api/openai/chat/completions`. `model` is a model i
 
 For an async tool, pass its signal to the existing service and check it before committing the result. For example, an operation using `fetch` should pass `{ signal }`, check `response.ok`, read its response, then call `signal.throwIfAborted()` before updating React state. Return the server's actual result. Use the application's normal persisted store instead of component-local state when data must survive a reload.
 
+## Per-operation permissions and review
+
+Add these fields to the existing `usePageTool` definition when the operation requires control:
+
+```tsx
+enabled: canEditCounter,
+allowedSources: ['chat'],
+approval: ({ value }) => value === 0
+  ? { title: 'Reset the counter?', description: `Replace the current value ${currentValue} with zero.` }
+  : false,
+```
+
+Here `canEditCounter` and `currentValue` come from the application's current state. Set the review threshold and wording for the real business operation; a counter is only an example. A static `{ title, description }` requires review every time. Omit `approval` for low-risk immediate operations. Empty `allowedSources` or `enabled: false` deny both discovery and invocation. This does not change what `usePageContext` exposes.
+
+The mounted overlay shows Approve this action and Reject action; no extra approval HTTP endpoint is needed. Custom UI reads `usePageway().pendingApproval` and calls `approveAction(pendingApproval.id)` or `rejectAction(pendingApproval.id)` only from a deliberate user interaction. Both return `false` for a stale ID. Never publish those methods as page tools. Rejection declines a single call, while `stop()` cancels the task. Approvals are not restored from localStorage and cannot replace backend ownership and authorization checks.
+
 ## Optional server: ordinary OpenAI completion proxy
 
 Install `@zllling/pageway-agent` in the server workspace. Mount the resulting handler at POST `/api/openai/chat/completions` through the framework's standard `Request`/`Response` adapter. Configure the server environment explicitly; these variables must not be exposed to a browser build.

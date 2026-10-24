@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-10-24
+
+- Add per-tool enablement and chat/WebMCP source restrictions, enforced both during discovery and immediately before execution.
+- Add application-defined, parameter-dependent approval prompts. High-risk calls wait for an explicit, single-use user decision; rejection, cancellation and changed approval details prevent execution.
+- Keep the page locked during review while making approval details and decision controls accessible by keyboard. Expose pending approvals and decision methods for custom interfaces, and retain decisions in the action trail and opt-in history without replaying operations.
+- Add agent permission controls and an approval-protected delete operation to the playground and public demo, with updated integration documentation.
+- Validate policy and approval lifecycles, browser keyboard/focus behavior, and React 18/19 packed consumers before publishing.
+
 ## 0.2.1 — 2026-10-19
 
 - Make the WebMCP cancellation contract deterministic on Linux WebKit by holding the executor before mutation while testing the real stop control. Real-time motion remains covered separately.

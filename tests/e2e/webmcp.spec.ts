@@ -69,7 +69,7 @@ test('an external WebMCP agent discovers context, updates the real page with ani
   expect(await page.evaluate(() => [...window.pagewayWebMCPFixture.tools.keys()])).toEqual(
     expect.arrayContaining(['pageway_get_context', 'pageway_inspect_page', 'pageway_update_task']),
   );
-  expect(await page.evaluate(() => window.pagewayWebMCPFixture.tools.size)).toBe(7);
+  expect(await page.evaluate(() => window.pagewayWebMCPFixture.tools.size)).toBe(8);
   const context = await page.evaluate(() =>
     window.pagewayWebMCPFixture.tools.get('pageway_get_context')!.execute({}),
   );
@@ -111,6 +111,56 @@ test('an external WebMCP agent discovers context, updates the real page with ani
     },
   });
   expect(apiCalls).toEqual([]);
+});
+
+test('high-risk browser actions require a keyboard-accessible decision and obey current permissions', async ({
+  page,
+}, testInfo) => {
+  await installWebMCPFixture(page);
+  await page.goto('/webmcp.html');
+  await expect(page.getByText('WebMCP tools ready', { exact: true })).toBeVisible();
+  const startDelete = () =>
+    page.evaluate(() => {
+      const fixture = window.pagewayWebMCPFixture;
+      fixture.pending = fixture.tools.get('pageway_delete_task')!.execute({ id: 'PW-103' });
+    });
+  const review = page.locator('[data-pageway-approval]');
+  const target = page.locator('#task-PW-103');
+  for (const decision of ['reject', 'cancel', 'approve']) {
+    await startDelete();
+    await expect(review).toContainText('PW-103');
+    await expect(review).toContainText('Connect the agent API');
+    await expect(review).toContainText('Browser agent (WebMCP)');
+    await expect(page.locator('[data-pageway-reject]')).toBeFocused();
+    if (decision === 'reject') {
+      const path = testInfo.outputPath('approval-review.png');
+      await page.screenshot({ path });
+      await testInfo.attach('Approval review', { path, contentType: 'image/png' });
+    }
+    await expect(target).toHaveCount(1);
+    expect(await page.locator(lockSelector).evaluate((dialog) => dialog.matches(':modal'))).toBe(
+      true,
+    );
+    if (decision === 'approve') {
+      await page.keyboard.press('Tab');
+      await expect(page.locator('[data-pageway-approve]')).toBeFocused();
+      await page.keyboard.press('Enter');
+    } else await page.keyboard.press(decision === 'reject' ? 'Enter' : 'Escape');
+    const result = await page.evaluate(() => window.pagewayWebMCPFixture.pending);
+    expect(result?.ok).toBe(decision === 'approve');
+    await expect(page.locator(lockSelector)).toHaveCount(0);
+    await expect(target).toHaveCount(decision === 'approve' ? 0 : 1);
+  }
+  await expect(page.locator('.pw-action.pw-is-rejected')).toHaveCount(1);
+  await expect(page.locator('.pw-action.pw-is-cancelled')).toHaveCount(1);
+  await expect(page.locator('.pw-action.pw-is-success')).toHaveCount(1);
+  await page.getByRole('checkbox', { name: 'Allow external agent edits' }).uncheck();
+  await expect
+    .poll(() => page.evaluate(() => [...window.pagewayWebMCPFixture.tools.keys()]))
+    .not.toContain('pageway_delete_task');
+  expect(
+    await page.evaluate(() => window.pagewayWebMCPFixture.tools.has('pageway_inspect_page')),
+  ).toBe(true);
 });
 
 test('the user and an external agent can cancel WebMCP operations before mutation and recover the workspace', async ({

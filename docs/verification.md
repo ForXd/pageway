@@ -1,5 +1,16 @@
 # 验证记录
 
+## 页面权限与高风险审批（2026-10-24）
+
+`0.3.0` 新增逐工具 `enabled`、`allowedSources` 和按参数生成的 `approval`。聊天与 WebMCP 共用审批执行器；批准只绑定当前调用，拒绝返回失败结果，取消清除待审批请求。执行前重新核验权限、参数、审批说明和工具注册身份，防止等待期间的变更沿用旧批准。
+
+- `pnpm check`：302 项单元／集成测试通过，行覆盖率 **96.07%**、分支覆盖率 **88.01%**；lint、格式、类型检查与生产构建通过。
+- `pnpm test:e2e`：**52 项通过**，覆盖 Chromium、Firefox、WebKit 和移动 Chromium。新增真实浏览器审批流程验证默认聚焦拒绝、Tab/Enter 批准、Enter 拒绝、Esc 取消、未批准前无页面修改，以及外部 Agent 编辑权限撤销。
+- `pnpm test:site`：生产构建 **24 项通过**，包含桌面与移动端的删除预览、批准／拒绝／取消、刷新不恢复审批、禁止编辑后仍可筛选、普通修改按设置审批。
+- `pnpm release:dry-run`：三个真实 tarball 在 React **18.0.0、18.2.0、18.3.1、19.3.1** 独立消费者中通过安装、SSR、类型、StrictMode、批准／拒绝及取消验证；npm dry-run 通过，不上传包。
+
+本次使用本地模型与 WebMCP API fixture 验证审批边界，没有把结果视为外部真实模型推理或浏览器原生 WebMCP 的可用性证明。浏览器审批不替代服务端业务鉴权，缓存轨迹也不是防篡改审计日志。发布与部署状态以 [GitHub Actions](https://github.com/ForXd/pageway/actions) 为准。
+
 ## Pages 免费模型直连（2026-10-19）
 
 公开演示默认使用 Pollinations Classic：`apiOrigin=https://text.pollinations.ai/v1`、`model=openai-fast`，实际响应模型为 `gpt-oss-20b`。匿名模型及工具能力以 [实时目录](https://text.pollinations.ai/models) 为准；限额和流式排队见 [官方 Classic 文档](https://github.com/pollinations/pollinations/blob/master/APIDOCS.md)。

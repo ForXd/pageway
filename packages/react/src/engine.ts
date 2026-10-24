@@ -2,9 +2,12 @@ import Ajv from 'ajv';
 import { readAgentEvents, RunAgentInputSchema } from '@zllling/pageway-protocol';
 import { requestAgentRound } from './transport.js';
 import { createSessionStore, type SessionStore } from './session-store.js';
+import { assertToolAllowed, getToolApproval, isToolAllowed } from './tool-policy.js';
 import type {
   ActionStep,
   PageTool,
+  PageToolApproval,
+  PagewayActionSource,
   PagewayEngineOptions,
   PagewayEvent,
   PagewayMessage,
@@ -29,7 +32,14 @@ const initialState = (): PagewaySnapshot => ({
   cursor: null,
   activity: null,
   animationDuration: 850,
+  pendingApproval: null,
 });
+
+class ApprovalRejected extends Error {
+  constructor() {
+    super('Rejected by user. The operation was not executed.');
+  }
+}
 
 /** Resolve untrusted model arguments before any registered function can run. */
 export function validateToolArguments(tool: PageTool, raw: string): Record<string, unknown> {
@@ -91,6 +101,7 @@ export class PagewayEngine {
   private epoch = 0;
   private sessionKey: string | undefined;
   private sessionStore: SessionStore | undefined;
+  private approvalDecision: { id: string; settle: (approved: boolean) => void } | null = null;
 
   /** Called after mount; storage is never read during React/SSR rendering. */
   configureSession = (storageKey?: string) => {
@@ -219,6 +230,91 @@ export class PagewayEngine {
   stop = () => {
     this.controller?.abort();
   };
+  /** Decisions are single-use and bound to the currently waiting call. */
+  approveAction = (id: string): boolean => this.decideApproval(id, true);
+  rejectAction = (id: string): boolean => this.decideApproval(id, false);
+
+  private decideApproval(id: string, approved: boolean): boolean {
+    const decision = this.approvalDecision;
+    if (!decision || decision.id !== id || this.controller?.signal.aborted) return false;
+    decision.settle(approved);
+    return true;
+  }
+
+  private requestApproval(
+    call: PagewayToolCall,
+    args: Record<string, unknown>,
+    source: PagewayActionSource,
+    approval: PageToolApproval,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    signal.throwIfAborted();
+    const requestedAt = Date.now();
+    // Model call IDs can repeat after reset or identity changes. A locally minted
+    // token prevents a delayed UI decision from approving a different operation.
+    const approvalId = uid();
+    return new Promise((resolve, reject) => {
+      const clear = () => {
+        signal.removeEventListener('abort', cancel);
+        this.approvalDecision = null;
+      };
+      const cancel = () => {
+        clear();
+        this.publish({ pendingApproval: null });
+        reject(aborted());
+      };
+      this.approvalDecision = {
+        id: approvalId,
+        settle: (approved) => {
+          clear();
+          this.publish({
+            pendingApproval: null,
+            actions: this.snapshot.actions.map((action) =>
+              action.id === call.id
+                ? {
+                    ...action,
+                    status: approved ? 'running' : 'rejected',
+                    approval: {
+                      ...approval,
+                      status: approved ? 'approved' : 'rejected',
+                      requestedAt,
+                      decidedAt: Date.now(),
+                    },
+                  }
+                : action,
+            ),
+          });
+          resolve(approved);
+        },
+      };
+      signal.addEventListener('abort', cancel, { once: true });
+      this.publish({
+        pendingApproval: {
+          ...approval,
+          id: approvalId,
+          name: call.function.name,
+          args: JSON.parse(JSON.stringify(args)),
+          source,
+        },
+        activity: {
+          phase: 'awaiting-approval',
+          label: approval.title,
+          toolName: call.function.name,
+        },
+        spotlight: null,
+        actions: this.snapshot.actions.map((action) =>
+          action.id === call.id
+            ? {
+                ...action,
+                status: 'awaiting-approval',
+                args,
+                approval: { ...approval, status: 'pending', requestedAt },
+              }
+            : action,
+        ),
+      });
+    });
+  }
   reset = () => {
     this.stop();
     this.sessionStore?.clear();
@@ -346,7 +442,7 @@ export class PagewayEngine {
       ],
     });
     try {
-      return await this.executeCall(call, controller.signal, false);
+      return await this.executeCall(call, controller.signal, 'webmcp');
     } catch (error) {
       const message = isAbort(error, controller.signal)
         ? 'Cancelled by user or agent.'
@@ -386,6 +482,7 @@ export class PagewayEngine {
     const contexts = this.options.getContexts();
     const tools = this.options
       .getTools()
+      .filter((tool) => isToolAllowed(tool, 'chat'))
       .map(({ name, description, parameters }) => ({ name, description, parameters }));
     const request = {
       threadId: this.threadId,
@@ -550,20 +647,30 @@ export class PagewayEngine {
   private async executeCall(
     call: PagewayToolCall,
     signal: AbortSignal,
-    recordMessage = true,
+    source: PagewayActionSource = 'chat',
   ): Promise<PagewayToolResult> {
+    const recordMessage = source === 'chat';
+    // Keep the proposed operation independent of mutable public snapshot objects.
+    const name = call.function.name;
+    const rawArguments = call.function.arguments || '{}';
     let outcome: PagewayToolResult | undefined;
     this.attemptedCalls.add(call.id);
-    const tool = this.options.getTools().find((candidate) => candidate.name === call.function.name);
+    const tool = this.options.getTools().find((candidate) => candidate.name === name);
     try {
-      if (!tool) throw new Error(`The page has not registered the tool "${call.function.name}".`);
-      const args = validateToolArguments(tool, call.function.arguments || '{}');
+      if (!tool) throw new Error(`The page has not registered the tool "${name}".`);
+      const args = validateToolArguments(tool, rawArguments);
+      assertToolAllowed(tool, source);
+      const approval = getToolApproval(tool, args);
+      const approvedExecute = tool.execute;
       if (!call.function.arguments) this.normalizeInterruptedCall(call);
       this.patchAction(call.id, {
         status: 'running',
-        args,
+        args: JSON.parse(JSON.stringify(args)),
         target: typeof tool.target === 'string' ? tool.target : undefined,
       });
+      if (approval && !(await this.requestApproval(call, args, source, approval, signal)))
+        throw new ApprovalRejected();
+      signal.throwIfAborted();
       await this.revealTarget(tool, args, call.id, signal);
       signal.throwIfAborted();
       const result = await withAbort(
@@ -571,15 +678,20 @@ export class PagewayEngine {
           signal.throwIfAborted();
           // Scrolling/highlighting can outlive a React render or component unmount.
           // Resolve both the capability and its schema at the moment of execution.
-          const currentTool = this.options
-            .getTools()
-            .find((candidate) => candidate.name === call.function.name);
+          const currentTool = this.options.getTools().find((candidate) => candidate.name === name);
           if (!currentTool)
+            throw new Error(`The tool "${name}" is no longer registered on this page.`);
+          const currentArgs = validateToolArguments(currentTool, rawArguments);
+          assertToolAllowed(currentTool, source);
+          const currentApproval = getToolApproval(currentTool, currentArgs);
+          if (
+            JSON.stringify(currentApproval) !== JSON.stringify(approval) ||
+            (approval && currentTool.execute !== approvedExecute)
+          )
             throw new Error(
-              `The tool "${call.function.name}" is no longer registered on this page.`,
+              'The tool or approval details changed. Request the operation again for a fresh review.',
             );
-          const currentArgs = validateToolArguments(currentTool, call.function.arguments || '{}');
-          this.patchAction(call.id, { args: currentArgs });
+          signal.throwIfAborted();
           return currentTool.execute(currentArgs, { signal });
         }),
         signal,
@@ -603,7 +715,11 @@ export class PagewayEngine {
       }
       const message = errorText(error);
       this.normalizeInterruptedCall(call);
-      this.patchAction(call.id, { status: 'error', error: message, endedAt: Date.now() });
+      this.patchAction(call.id, {
+        status: error instanceof ApprovalRejected ? 'rejected' : 'error',
+        error: message,
+        endedAt: Date.now(),
+      });
       outcome = { ok: false, error: message };
       this.finishCall(call, outcome, recordMessage);
       await this.acknowledgeStep(call.function.name, 'error', signal);
