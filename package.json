@@ -35,7 +35,7 @@
     "check:model:frontend": "tsx scripts/check-frontend-model.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.3",
     "@playwright/test": "1.64.1",
     "@testing-library/react": "16.3.3",
     "@types/node": "latest",
